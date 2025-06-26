@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
+import { hashPassword, verifyPassword } from "@/lib/password-utils"
 
 interface AuthUser {
   id: string
@@ -141,14 +142,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("username", username)
-        .eq("password", password)
-        .single()
+      const { data, error } = await supabase.from("users").select("*").eq("username", username).single()
 
       if (error || !data) {
+        return false
+      }
+
+      // Verificar senha com hash
+      if (!verifyPassword(password, data.password)) {
         return false
       }
 
@@ -178,13 +179,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
 
+      const hashedPassword = hashPassword(password)
+
       const { data, error } = await supabase
         .from("users")
         .insert([
           {
             name,
             username,
-            password,
+            password: hashedPassword,
             role: "user",
           },
         ])
@@ -449,7 +452,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false
 
     try {
-      const { error } = await supabase.from("users").update({ name, password }).eq("id", user.id)
+      const hashedPassword = hashPassword(password)
+      const { error } = await supabase.from("users").update({ name, password: hashedPassword }).eq("id", user.id)
 
       if (error) throw error
 
@@ -470,11 +474,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user?.role !== "master") return false
 
     try {
+      const hashedPassword = hashPassword(username) // Senha padrão é o username
       const { error } = await supabase.from("users").insert([
         {
           name,
           username,
-          password: username, // Senha padrão é o username
+          password: hashedPassword,
           role: "user",
         },
       ])

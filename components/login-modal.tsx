@@ -121,12 +121,6 @@ export function LoginModal() {
                 {loading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
-
-            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-              <p className="font-medium">Usuário Master:</p>
-              <p>Usuário: admin</p>
-              <p>Senha: admin123</p>
-            </div>
           </TabsContent>
 
           <TabsContent value="signup" className="space-y-4">

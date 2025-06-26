@@ -46,12 +46,7 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <div className="flex space-x-2">
-                <Button variant="ghost" onClick={openLogin}>
-                  Entrar
-                </Button>
-                <Button onClick={openLogin}>Cadastrar</Button>
-              </div>
+              <Button onClick={openLogin}>Entrar</Button>
             )}
           </div>
         </div>

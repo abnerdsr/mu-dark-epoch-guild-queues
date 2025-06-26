@@ -19,8 +19,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, updateProfile } = useAuth()
   const [formData, setFormData] = useState({
     name: user?.name || "",
+    username: user?.username || "",
     password: "",
-    confirmPassword: "",
   })
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -32,32 +32,20 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     setSuccess("")
     setLoading(true)
 
-    if (!formData.name.trim()) {
-      setError("Nome é obrigatório")
+    if (!formData.name || !formData.password) {
+      setError("Nome e senha são obrigatórios")
       setLoading(false)
       return
     }
 
-    if (!formData.password) {
-      setError("Senha é obrigatória")
-      setLoading(false)
-      return
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Senhas não coincidem")
-      setLoading(false)
-      return
-    }
-
-    const success = await updateProfile(formData.name.trim(), formData.password)
-    if (success) {
+    const result = await updateProfile(formData.name, formData.password)
+    if (result) {
       setSuccess("Perfil atualizado com sucesso!")
-      setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }))
+      setFormData((prev) => ({ ...prev, password: "" }))
       setTimeout(() => {
         onClose()
         setSuccess("")
-      }, 1500)
+      }, 2000)
     } else {
       setError("Erro ao atualizar perfil")
     }
@@ -67,8 +55,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const handleClose = () => {
     setFormData({
       name: user?.name || "",
+      username: user?.username || "",
       password: "",
-      confirmPassword: "",
     })
     setError("")
     setSuccess("")
@@ -84,15 +72,9 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Nome de Usuário</Label>
-            <Input id="username" value={user?.username || ""} disabled className="bg-gray-100" />
-            <p className="text-xs text-gray-500">Nome de usuário não pode ser alterado</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome Completo</Label>
+            <Label htmlFor="profile-name">Nome Completo</Label>
             <Input
-              id="name"
+              id="profile-name"
               value={formData.name}
               onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               required
@@ -100,23 +82,24 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Nova Senha</Label>
+            <Label htmlFor="profile-username">Nome de Usuário</Label>
             <Input
-              id="password"
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
-              required
+              id="profile-username"
+              value={formData.username}
+              disabled
+              className="bg-gray-100 cursor-not-allowed"
             />
+            <p className="text-xs text-gray-500">Nome de usuário não pode ser alterado</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+            <Label htmlFor="profile-password">Nova Senha</Label>
             <Input
-              id="confirmPassword"
+              id="profile-password"
               type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+              value={formData.password}
+              onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+              placeholder="Digite sua nova senha"
               required
             />
           </div>
@@ -134,11 +117,11 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           )}
 
           <div className="flex space-x-2">
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? "Salvando..." : "Salvar"}
-            </Button>
             <Button type="button" variant="outline" onClick={handleClose} className="flex-1 bg-transparent">
               Cancelar
+            </Button>
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </form>
