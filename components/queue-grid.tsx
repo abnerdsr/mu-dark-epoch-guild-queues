@@ -1,90 +1,51 @@
 "use client"
-
-import type React from "react"
-
 import { useAuth } from "@/components/auth-provider"
 import { QueueCard } from "@/components/queue-card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Plus, Users } from "lucide-react"
-import { useState } from "react"
-import { UserManagementModal } from "@/components/user-management-modal"
 
 export function QueueGrid() {
-  const { user, queues, createQueue } = useAuth()
-  const [newQueueTitle, setNewQueueTitle] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
-  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false)
+  const { user, queues, loading } = useAuth()
 
-  const handleCreateQueue = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newQueueTitle.trim()) return
-
-    await createQueue(newQueueTitle.trim())
-    setNewQueueTitle("")
-    setIsCreating(false)
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando filas...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <>
-      <div className="container mx-auto px-4 py-8">
-        {user?.role === "master" && (
-          <div className="mb-6 flex flex-col sm:flex-row gap-4">
-            {!isCreating ? (
-              <>
-                <Button onClick={() => setIsCreating(true)} className="flex items-center space-x-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Nova Fila</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsUserManagementOpen(true)}
-                  className="flex items-center space-x-2"
-                >
-                  <Users className="h-4 w-4" />
-                  <span>Gerenciar Usuários</span>
-                </Button>
-              </>
-            ) : (
-              <form onSubmit={handleCreateQueue} className="flex gap-2 w-full">
-                <Input
-                  value={newQueueTitle}
-                  onChange={(e) => setNewQueueTitle(e.target.value)}
-                  placeholder="Nome da nova fila"
-                  className="flex-1"
-                  autoFocus
-                />
-                <Button type="submit">Criar</Button>
-                <Button type="button" variant="outline" onClick={() => setIsCreating(false)}>
-                  Cancelar
-                </Button>
-              </form>
-            )}
+    <div className="container mx-auto px-4 py-8">
+      {queues.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-gray-500 mb-4">
+            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
           </div>
-        )}
-
-        {queues.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-500">
-              <div className="text-4xl mb-4">📋</div>
-              <h3 className="text-lg font-medium mb-2">Nenhuma fila encontrada</h3>
-              <p>
-                {user?.role === "master"
-                  ? "Crie sua primeira fila clicando no botão acima."
-                  : "Aguarde o administrador criar as filas."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {queues.map((queue) => (
-              <QueueCard key={queue.id} queue={queue} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <UserManagementModal isOpen={isUserManagementOpen} onClose={() => setIsUserManagementOpen(false)} />
-    </>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma fila encontrada</h3>
+          <p className="text-gray-500">
+            {user?.role === "master"
+              ? "Crie sua primeira fila clicando no botão 'Nova Fila'"
+              : "Aguarde o administrador criar as filas"}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {queues.map((queue) => (
+            <QueueCard key={queue.id} queue={queue} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

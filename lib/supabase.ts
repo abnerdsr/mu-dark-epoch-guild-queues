@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+// Cria e exporta uma única instância do cliente
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Tipos para o banco de dados

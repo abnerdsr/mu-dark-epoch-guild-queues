@@ -2,13 +2,14 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/auth-provider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { User } from "lucide-react"
 
 interface ProfileModalProps {
   isOpen: boolean
@@ -18,50 +19,43 @@ interface ProfileModalProps {
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, updateProfile } = useAuth()
   const [formData, setFormData] = useState({
-    name: "",
-    username: "",
+    name: user?.name || "",
     password: "",
+    confirmPassword: "",
   })
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // Atualizar dados quando o modal abrir ou usuário mudar
-  useEffect(() => {
-    if (user && isOpen) {
-      setFormData({
-        name: user.name,
-        username: user.username,
-        password: "",
-      })
-    }
-  }, [user, isOpen])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setSuccess("")
-    setLoading(true)
 
     if (!formData.name.trim()) {
       setError("Nome é obrigatório")
-      setLoading(false)
       return
     }
 
     if (!formData.password) {
       setError("Senha é obrigatória")
-      setLoading(false)
       return
     }
 
+    if (formData.password !== formData.confirmPassword) {
+      setError("Senhas não coincidem")
+      return
+    }
+
+    setLoading(true)
     const result = await updateProfile(formData.name.trim(), formData.password)
+
     if (result) {
       setSuccess("Perfil atualizado com sucesso!")
-      setFormData((prev) => ({ ...prev, password: "" }))
+      setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }))
       setTimeout(() => {
-        onClose()
         setSuccess("")
+        onClose()
       }, 2000)
     } else {
       setError("Erro ao atualizar perfil")
@@ -72,8 +66,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const handleClose = () => {
     setFormData({
       name: user?.name || "",
-      username: user?.username || "",
       password: "",
+      confirmPassword: "",
     })
     setError("")
     setSuccess("")
@@ -84,7 +78,10 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar Perfil</DialogTitle>
+          <DialogTitle className="flex items-center space-x-2">
+            <User className="h-5 w-5" />
+            <span>Editar Perfil</span>
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,12 +97,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
           <div className="space-y-2">
             <Label htmlFor="profile-username">Nome de Usuário</Label>
-            <Input
-              id="profile-username"
-              value={formData.username}
-              disabled
-              className="bg-gray-100 cursor-not-allowed"
-            />
+            <Input id="profile-username" value={user?.username || ""} disabled className="bg-gray-100" />
             <p className="text-xs text-gray-500">Nome de usuário não pode ser alterado</p>
           </div>
 
@@ -116,7 +108,17 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               type="password"
               value={formData.password}
               onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
-              placeholder="Digite sua nova senha"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="profile-confirm-password">Confirmar Nova Senha</Label>
+            <Input
+              id="profile-confirm-password"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
               required
             />
           </div>
