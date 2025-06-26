@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -7,9 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/components/auth-provider"
-import { Plus, UserPlus, UserMinus, RotateCcw, Check, MoreVertical, Trash2 } from "lucide-react"
+import { Plus, Trash2, MoreVertical, RotateCcw, Check, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface QueueCardProps {
   queue: {
@@ -37,38 +38,30 @@ export function QueueCard({ queue }: QueueCardProps) {
     deleteQueue,
     canJoinQueue,
   } = useAuth()
-
+  const [newPersonName, setNewPersonName] = useState("")
   const [selectedUserId, setSelectedUserId] = useState("")
   const [isAdding, setIsAdding] = useState(false)
-  const [error, setError] = useState("")
 
-  // Separar itens por status
   const approvedItems = queue.items.filter((item) => item.status === "approved").sort((a, b) => a.position - b.position)
   const waitingItems = queue.items.filter((item) => item.status === "waiting").sort((a, b) => a.position - b.position)
 
-  // Usuários disponíveis para adicionar (que não estão na fila)
-  const availableUsers = users.filter(
-    (u) => u.role === "user" && !queue.items.some((item) => item.requestedBy === u.id),
-  )
-
-  const handleAddPerson = async () => {
+  const handleAddPerson = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!selectedUserId) return
 
-    setError("")
-    setIsAdding(true)
     try {
       await addPersonToQueue(queue.id, selectedUserId)
       setSelectedUserId("")
+      setIsAdding(false)
     } catch (error) {
-      setError("Erro ao adicionar pessoa à fila")
+      alert("Erro ao adicionar pessoa: " + (error as Error).message)
     }
-    setIsAdding(false)
   }
 
   const handleRequestJoin = async () => {
     const success = await requestToJoinQueue(queue.id)
     if (!success) {
-      setError("Não foi possível solicitar entrada na fila")
+      alert("Você já está nesta fila ou ocorreu um erro.")
     }
   }
 
@@ -78,12 +71,15 @@ export function QueueCard({ queue }: QueueCardProps) {
     }
   }
 
-  const canUserJoin = user?.role === "user" && canJoinQueue(queue.id)
+  // Filtrar usuários disponíveis (que não estão na fila)
+  const availableUsers = users.filter(
+    (u) => u.role === "user" && !queue.items.some((item) => item.requestedBy === u.id),
+  )
 
   return (
     <Card className="h-fit">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-lg font-semibold">{queue.title}</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-lg">{queue.title}</CardTitle>
         {user?.role === "master" && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -102,50 +98,55 @@ export function QueueCard({ queue }: QueueCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Botão para usuário comum solicitar entrada */}
-        {canUserJoin && (
-          <Button onClick={handleRequestJoin} className="w-full" size="sm">
+        {/* Botão de solicitação para usuário comum */}
+        {user?.role === "user" && (
+          <Button
+            onClick={handleRequestJoin}
+            disabled={!canJoinQueue(queue.id)}
+            className="w-full"
+            variant={canJoinQueue(queue.id) ? "default" : "secondary"}
+          >
             <Plus className="h-4 w-4 mr-2" />
-            Solicitar Entrada
+            {canJoinQueue(queue.id) ? "Solicitar Entrada" : "Já está na fila"}
           </Button>
         )}
 
         {/* Formulário para admin adicionar pessoa */}
         {user?.role === "master" && (
-          <div className="space-y-3">
-            <div className="flex space-x-2">
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Selecionar usuário" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableUsers.length === 0 ? (
-                    <SelectItem value="" disabled>
-                      Nenhum usuário disponível
-                    </SelectItem>
-                  ) : (
-                    availableUsers.map((user) => (
+          <div className="space-y-2">
+            {!isAdding ? (
+              <Button onClick={() => setIsAdding(true)} variant="outline" className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Pessoa
+              </Button>
+            ) : (
+              <form onSubmit={handleAddPerson} className="space-y-2">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar usuário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableUsers.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.name} (@{user.username})
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleAddPerson} disabled={!selectedUserId || isAdding} size="sm" className="shrink-0">
-                <UserPlus className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex space-x-2">
+                  <Button type="submit" size="sm" disabled={!selectedUserId}>
+                    Adicionar
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsAdding(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </form>
             )}
           </div>
         )}
 
-        {/* Abas para admin, lista simples para usuários */}
+        {/* Abas para admin */}
         {user?.role === "master" ? (
           <Tabs defaultValue="approved" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -155,35 +156,33 @@ export function QueueCard({ queue }: QueueCardProps) {
 
             <TabsContent value="approved" className="space-y-2">
               {approvedItems.length === 0 ? (
-                <p className="text-center text-gray-500 py-4 text-sm">Fila vazia</p>
+                <p className="text-center text-gray-500 py-4">Fila vazia</p>
               ) : (
-                approvedItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border">
-                    <div className="flex items-center space-x-3">
-                      <span className="font-medium text-sm w-6">{item.position}º</span>
-                      <span className="text-sm">{item.name}</span>
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        Aprovado
-                      </Badge>
+                approvedItems.map((item, index) => (
+                  <div key={item.id} className="flex items-center justify-between p-2 border rounded">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="secondary">{index + 1}</Badge>
+                      <span>{item.name}</span>
                     </div>
                     <div className="flex space-x-1">
-                      {item.position === 1 && (
+                      {index === 0 && (
                         <Button
-                          variant="ghost"
                           size="sm"
+                          variant="outline"
                           onClick={() => moveToEnd(queue.id, item.id)}
                           title="Pegou o item"
                         >
-                          <RotateCcw className="h-4 w-4" />
+                          <RotateCcw className="h-3 w-3" />
                         </Button>
                       )}
                       <Button
-                        variant="ghost"
                         size="sm"
+                        variant="outline"
                         onClick={() => removePersonFromQueue(queue.id, item.id)}
+                        className="text-red-600"
                         title="Remover"
                       >
-                        <UserMinus className="h-4 w-4" />
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -193,33 +192,34 @@ export function QueueCard({ queue }: QueueCardProps) {
 
             <TabsContent value="waiting" className="space-y-2">
               {waitingItems.length === 0 ? (
-                <p className="text-center text-gray-500 py-4 text-sm">Nenhuma solicitação pendente</p>
+                <p className="text-center text-gray-500 py-4">Nenhuma solicitação</p>
               ) : (
-                waitingItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border">
-                    <div className="flex items-center space-x-3">
-                      <span className="font-medium text-sm w-6">{item.position}º</span>
-                      <span className="text-sm">{item.name}</span>
-                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                waitingItems.map((item, index) => (
+                  <div key={item.id} className="flex items-center justify-between p-2 border rounded bg-yellow-50">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="bg-yellow-100">
                         Aguardando
                       </Badge>
+                      <span>{item.name}</span>
                     </div>
                     <div className="flex space-x-1">
                       <Button
-                        variant="ghost"
                         size="sm"
+                        variant="outline"
                         onClick={() => approveRequest(queue.id, item.id)}
+                        className="text-green-600"
                         title="Aprovar"
                       >
-                        <Check className="h-4 w-4" />
+                        <Check className="h-3 w-3" />
                       </Button>
                       <Button
-                        variant="ghost"
                         size="sm"
+                        variant="outline"
                         onClick={() => removePersonFromQueue(queue.id, item.id)}
-                        title="Remover"
+                        className="text-red-600"
+                        title="Rejeitar"
                       >
-                        <UserMinus className="h-4 w-4" />
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -228,18 +228,18 @@ export function QueueCard({ queue }: QueueCardProps) {
             </TabsContent>
           </Tabs>
         ) : (
-          // Lista simples para usuários comuns e não logados
+          /* Lista simples para usuários comuns */
           <div className="space-y-2">
-            <h4 className="font-medium text-sm text-gray-700 mb-2">Fila ({approvedItems.length} pessoas)</h4>
+            <h4 className="font-medium">Fila ({approvedItems.length} pessoas)</h4>
             {approvedItems.length === 0 ? (
-              <p className="text-center text-gray-500 py-4 text-sm">Fila vazia</p>
+              <p className="text-center text-gray-500 py-4">Fila vazia</p>
             ) : (
-              approvedItems.map((item) => (
-                <div key={item.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded">
-                  <span className="font-medium text-sm w-6">{item.position}º</span>
-                  <span className="text-sm">{item.name}</span>
-                  {user && item.requestedBy === user.id && (
-                    <Badge variant="secondary" className="ml-auto">
+              approvedItems.map((item, index) => (
+                <div key={item.id} className="flex items-center space-x-2 p-2 border rounded">
+                  <Badge variant="secondary">{index + 1}</Badge>
+                  <span>{item.name}</span>
+                  {item.requestedBy === user?.id && (
+                    <Badge variant="outline" className="ml-auto">
                       Você
                     </Badge>
                   )}

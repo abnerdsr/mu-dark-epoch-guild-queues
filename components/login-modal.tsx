@@ -18,33 +18,20 @@ export function LoginModal() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const validateUsername = (username: string) => {
-    if (username.includes(" ")) {
-      return "Nome de usuário não pode conter espaços"
-    }
-    if (username.length < 3) {
-      return "Nome de usuário deve ter pelo menos 3 caracteres"
-    }
-    return ""
-  }
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
 
-    const usernameError = validateUsername(loginData.username)
-    if (usernameError) {
-      setError(usernameError)
+    if (!loginData.username || !loginData.password) {
+      setError("Todos os campos são obrigatórios")
       setLoading(false)
       return
     }
 
     const success = await login(loginData.username, loginData.password)
     if (!success) {
-      setError("Nome de usuário ou senha incorretos")
-    } else {
-      setLoginData({ username: "", password: "" })
+      setError("Credenciais inválidas")
     }
     setLoading(false)
   }
@@ -60,24 +47,28 @@ export function LoginModal() {
       return
     }
 
-    const usernameError = validateUsername(signupData.username)
-    if (usernameError) {
-      setError(usernameError)
+    if (signupData.username.includes(" ")) {
+      setError("Nome de usuário não pode conter espaços")
       setLoading(false)
       return
     }
 
     const success = await signup(signupData.name, signupData.username, signupData.password)
     if (!success) {
-      setError("Nome de usuário já existe ou erro no cadastro")
-    } else {
-      setSignupData({ name: "", username: "", password: "" })
+      setError("Erro ao criar conta. Nome de usuário pode já existir.")
     }
     setLoading(false)
   }
 
+  const handleClose = () => {
+    setLoginData({ username: "", password: "" })
+    setSignupData({ name: "", username: "", password: "" })
+    setError("")
+    closeLogin()
+  }
+
   return (
-    <Dialog open={isLoginOpen} onOpenChange={closeLogin}>
+    <Dialog open={isLoginOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Acesso ao Sistema</DialogTitle>
@@ -95,10 +86,8 @@ export function LoginModal() {
                 <Label htmlFor="login-username">Nome de Usuário</Label>
                 <Input
                   id="login-username"
-                  type="text"
                   value={loginData.username}
-                  onChange={(e) => setLoginData((prev) => ({ ...prev, username: e.target.value.toLowerCase().trim() }))}
-                  placeholder="Ex: joaosilva"
+                  onChange={(e) => setLoginData((prev) => ({ ...prev, username: e.target.value }))}
                   required
                 />
               </div>
@@ -112,11 +101,13 @@ export function LoginModal() {
                   required
                 />
               </div>
+
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Entrando..." : "Entrar"}
               </Button>
@@ -131,7 +122,6 @@ export function LoginModal() {
                   id="signup-name"
                   value={signupData.name}
                   onChange={(e) => setSignupData((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Ex: João Silva"
                   required
                 />
               </div>
@@ -139,15 +129,11 @@ export function LoginModal() {
                 <Label htmlFor="signup-username">Nome de Usuário</Label>
                 <Input
                   id="signup-username"
-                  type="text"
                   value={signupData.username}
-                  onChange={(e) =>
-                    setSignupData((prev) => ({ ...prev, username: e.target.value.toLowerCase().trim() }))
-                  }
-                  placeholder="Ex: joaosilva (sem espaços)"
+                  onChange={(e) => setSignupData((prev) => ({ ...prev, username: e.target.value }))}
+                  placeholder="Sem espaços"
                   required
                 />
-                <p className="text-xs text-gray-500">Apenas letras, números e _ (sem espaços)</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="signup-password">Senha</Label>
@@ -159,11 +145,13 @@ export function LoginModal() {
                   required
                 />
               </div>
+
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Cadastrando..." : "Cadastrar"}
               </Button>

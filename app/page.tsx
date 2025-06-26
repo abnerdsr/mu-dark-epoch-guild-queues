@@ -10,9 +10,7 @@ export default function Home() {
     <AuthProvider>
       <div className="min-h-screen bg-gray-50">
         <Header />
-        <main>
-          <QueueGrid />
-        </main>
+        <QueueGrid />
         <LoginModal />
       </div>
     </AuthProvider>

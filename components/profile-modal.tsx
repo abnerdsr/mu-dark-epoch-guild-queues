@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,13 +18,24 @@ interface ProfileModalProps {
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, updateProfile } = useAuth()
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    username: user?.username || "",
+    name: "",
+    username: "",
     password: "",
   })
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [loading, setLoading] = useState(false)
+
+  // Atualizar dados quando o modal abrir ou usuário mudar
+  useEffect(() => {
+    if (user && isOpen) {
+      setFormData({
+        name: user.name,
+        username: user.username,
+        password: "",
+      })
+    }
+  }, [user, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,13 +43,19 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     setSuccess("")
     setLoading(true)
 
-    if (!formData.name || !formData.password) {
-      setError("Nome e senha são obrigatórios")
+    if (!formData.name.trim()) {
+      setError("Nome é obrigatório")
       setLoading(false)
       return
     }
 
-    const result = await updateProfile(formData.name, formData.password)
+    if (!formData.password) {
+      setError("Senha é obrigatória")
+      setLoading(false)
+      return
+    }
+
+    const result = await updateProfile(formData.name.trim(), formData.password)
     if (result) {
       setSuccess("Perfil atualizado com sucesso!")
       setFormData((prev) => ({ ...prev, password: "" }))
