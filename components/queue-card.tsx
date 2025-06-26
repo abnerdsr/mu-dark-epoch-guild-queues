@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/auth-provider"
 import { Plus, Trash2, ArrowDown, UserCheck, Clock, MoreVertical, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface Queue {
   id: string
@@ -27,27 +28,50 @@ interface QueueCardProps {
 }
 
 export function QueueCard({ queue }: QueueCardProps) {
-  const { user, addPersonToQueue, removePersonFromQueue, moveToEnd, approveRequest, requestToJoinQueue, deleteQueue } =
-    useAuth()
+  const {
+    user,
+    users,
+    addPersonToQueue,
+    removePersonFromQueue,
+    moveToEnd,
+    approveRequest,
+    requestToJoinQueue,
+    deleteQueue,
+    canJoinQueue,
+  } = useAuth()
 
-  const [newPersonName, setNewPersonName] = useState("")
+  const [selectedUserId, setSelectedUserId] = useState("")
   const [isAdding, setIsAdding] = useState(false)
+  const [error, setError] = useState("")
 
   // Separar itens por status
   const approvedItems = queue.items.filter((item) => item.status === "approved").sort((a, b) => a.position - b.position)
   const waitingItems = queue.items.filter((item) => item.status === "waiting").sort((a, b) => a.position - b.position)
 
-  const handleAddPerson = () => {
-    if (newPersonName.trim() && user?.role === "master") {
-      addPersonToQueue(queue.id, newPersonName.trim())
-      setNewPersonName("")
-      setIsAdding(false)
+  // Usuários disponíveis para adicionar (que não estão na fila)
+  const availableUsers = users.filter(
+    (u) => u.role === "user" && !queue.items.some((item) => item.requestedBy === u.id),
+  )
+
+  const handleAddPerson = async () => {
+    if (selectedUserId && user?.role === "master") {
+      try {
+        setError("")
+        await addPersonToQueue(queue.id, selectedUserId)
+        setSelectedUserId("")
+        setIsAdding(false)
+      } catch (error: any) {
+        setError(error.message || "Erro ao adicionar pessoa")
+      }
     }
   }
 
-  const handleRequestJoin = () => {
+  const handleRequestJoin = async () => {
     if (user?.role === "user") {
-      requestToJoinQueue(queue.id)
+      const success = await requestToJoinQueue(queue.id)
+      if (!success) {
+        setError("Você já está nesta fila ou houve um erro")
+      }
       setIsAdding(false)
     }
   }
@@ -76,6 +100,8 @@ export function QueueCard({ queue }: QueueCardProps) {
   const canMoveToEnd = (item: any) => {
     return user?.role === "master" && item.status === "approved" && item.position === 1
   }
+
+  const userCanJoin = user?.role === "user" && canJoinQueue(queue.id)
 
   return (
     <Card className="h-fit">
@@ -220,36 +246,51 @@ export function QueueCard({ queue }: QueueCardProps) {
           </div>
         )}
 
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Adicionar pessoa - seção modificada */}
         {user && (
           <div className="border-t pt-4">
             {user.role === "master" ? (
-              // Lógica para admin (mantém o comportamento atual)
+              // Lógica para admin - selecionar usuário cadastrado
               !isAdding ? (
-                <Button onClick={() => setIsAdding(true)} variant="outline" size="sm" className="w-full">
+                <Button
+                  onClick={() => setIsAdding(true)}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={availableUsers.length === 0}
+                >
                   <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Pessoa
+                  {availableUsers.length === 0 ? "Nenhum usuário disponível" : "Adicionar Pessoa"}
                 </Button>
               ) : (
                 <div className="space-y-2">
-                  <Input
-                    placeholder="Nome da pessoa"
-                    value={newPersonName}
-                    onChange={(e) => setNewPersonName(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        handleAddPerson()
-                      }
-                    }}
-                  />
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um usuário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} (@{user.username})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <div className="flex space-x-2">
-                    <Button onClick={handleAddPerson} size="sm" className="flex-1" disabled={!newPersonName.trim()}>
+                    <Button onClick={handleAddPerson} size="sm" className="flex-1" disabled={!selectedUserId}>
                       Adicionar
                     </Button>
                     <Button
                       onClick={() => {
                         setIsAdding(false)
-                        setNewPersonName("")
+                        setSelectedUserId("")
+                        setError("")
                       }}
                       variant="outline"
                       size="sm"
@@ -262,9 +303,15 @@ export function QueueCard({ queue }: QueueCardProps) {
               )
             ) : (
               // Lógica simplificada para usuário comum (ação única)
-              <Button onClick={handleRequestJoin} variant="outline" size="sm" className="w-full bg-transparent">
+              <Button
+                onClick={handleRequestJoin}
+                variant="outline"
+                size="sm"
+                className="w-full bg-transparent"
+                disabled={!userCanJoin}
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Solicitar Entrada
+                {userCanJoin ? "Solicitar Entrada" : "Já está na fila"}
               </Button>
             )}
           </div>
