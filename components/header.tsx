@@ -8,14 +8,15 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
 import { ProfileModal } from "@/components/profile-modal"
 import { UserManagementModal } from "@/components/user-management-modal"
-import { ChevronDown, User, LogOut, Users, Plus } from "lucide-react"
+import { ChevronDown, User, LogOut, Users, Plus, RefreshCw } from "lucide-react"
 
 export function Header() {
-  const { user, openLogin, logout } = useAuth()
+  const { user, openLogin, logout, refreshQueues } = useAuth()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false)
   const [isCreateQueueModalOpen, setIsCreateQueueModalOpen] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -32,6 +33,17 @@ export function Header() {
     setIsDropdownOpen(false)
   }
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await refreshQueues()
+    } catch (error) {
+      console.error("Erro ao atualizar:", error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <>
       <header className="bg-white shadow-sm border-b">
@@ -44,8 +56,19 @@ export function Header() {
             <h1 className="text-xl font-bold text-gray-900">Sistema de Filas</h1>
           </div>
 
-          {/* Botões do Admin e Login */}
+          {/* Botões do Admin, Refresh e Login */}
           <div className="flex items-center space-x-3">
+            {/* Botão de Refresh - Disponível para todos */}
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              disabled={isRefreshing}
+              className="flex items-center bg-transparent"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Atualizando..." : "Atualizar"}
+            </Button>
+
             {user?.role === "master" && (
               <>
                 <Button onClick={() => setIsCreateQueueModalOpen(true)} variant="outline">

@@ -4,23 +4,23 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/components/auth-provider"
-import { MoreVertical, Plus, UserPlus, Check, X, RotateCcw, Trash2 } from "lucide-react"
+import { Users, UserPlus, Trash2, Check, X, ArrowDown, ArrowUpDown, Clock } from "lucide-react"
+
+interface QueueWithItems {
+  id: string
+  title: string
+  items: Array<{
+    id: string
+    name: string
+    position: number
+    status: "waiting" | "approved" | "completed"
+    requestedBy: string
+  }>
+}
 
 interface QueueCardProps {
-  queue: {
-    id: string
-    title: string
-    items: Array<{
-      id: string
-      name: string
-      position: number
-      status: "waiting" | "approved" | "completed"
-      requestedBy: string
-    }>
-  }
+  queue: QueueWithItems
 }
 
 export function QueueCard({ queue }: QueueCardProps) {
@@ -30,247 +30,302 @@ export function QueueCard({ queue }: QueueCardProps) {
     addPersonToQueue,
     removePersonFromQueue,
     moveToEnd,
+    changePosition,
     approveRequest,
     requestToJoinQueue,
     deleteQueue,
     canJoinQueue,
   } = useAuth()
 
-  const [isAddingPerson, setIsAddingPerson] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState("")
-  const [showMenu, setShowMenu] = useState(false)
+  const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false)
+  const [isPositionModalOpen, setIsPositionModalOpen] = useState(false)
+  const [selectedItemId, setSelectedItemId] = useState<string>("")
+  const [newPosition, setNewPosition] = useState<number>(1)
   const [loading, setLoading] = useState(false)
 
-  // Separar itens por status
+  // Separar itens aprovados e pendentes
   const approvedItems = queue.items.filter((item) => item.status === "approved").sort((a, b) => a.position - b.position)
-  const waitingItems = queue.items.filter((item) => item.status === "waiting").sort((a, b) => a.position - b.position)
 
-  // Usuários disponíveis para adicionar (que não estão na fila)
-  const availableUsers = users.filter(
-    (u) => u.role !== "master" && !queue.items.some((item) => item.requestedBy === u.id),
-  )
+  const pendingItems = queue.items.filter((item) => item.status === "waiting")
 
-  const handleAddPerson = async () => {
-    if (!selectedUserId) return
-
-    setLoading(true)
+  const handleAddPerson = async (userId: string) => {
     try {
-      await addPersonToQueue(queue.id, selectedUserId)
-      setSelectedUserId("")
-      setIsAddingPerson(false)
+      setLoading(true)
+      await addPersonToQueue(queue.id, userId)
+      setIsAddPersonModalOpen(false)
     } catch (error) {
       console.error("Erro ao adicionar pessoa:", error)
+      alert("Erro ao adicionar pessoa à fila")
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleRequestJoin = async () => {
-    setLoading(true)
-    await requestToJoinQueue(queue.id)
-    setLoading(false)
-  }
-
-  const handleDeleteQueue = async () => {
-    if (confirm(`Tem certeza que deseja excluir a fila "${queue.title}"?`)) {
-      await deleteQueue(queue.id)
+    const success = await requestToJoinQueue(queue.id)
+    if (!success) {
+      alert("Não foi possível solicitar entrada na fila")
     }
-    setShowMenu(false)
   }
 
-  const canUserJoin = user?.role === "user" && canJoinQueue(queue.id)
+  const handleChangePosition = async () => {
+    if (!selectedItemId || newPosition < 1 || newPosition > approvedItems.length) return
+
+    try {
+      setLoading(true)
+      await changePosition(queue.id, selectedItemId, newPosition)
+      setIsPositionModalOpen(false)
+      setSelectedItemId("")
+      setNewPosition(1)
+    } catch (error) {
+      console.error("Erro ao alterar posição:", error)
+      alert("Erro ao alterar posição")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const openPositionModal = (itemId: string, currentPosition: number) => {
+    setSelectedItemId(itemId)
+    setNewPosition(currentPosition)
+    setIsPositionModalOpen(true)
+  }
 
   return (
-    <Card className="h-fit">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-lg">{queue.title}</CardTitle>
-
-        {user?.role === "master" && (
-          <div className="relative">
-            <Button variant="ghost" size="sm" onClick={() => setShowMenu(!showMenu)} className="h-8 w-8 p-0">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-
-            {showMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-20">
-                  <button
-                    onClick={handleDeleteQueue}
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir Fila
-                  </button>
-                </div>
-              </>
-            )}
+    <>
+      <Card className="h-full">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{queue.title}</CardTitle>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Users className="h-3 w-3" />
+                <span>{approvedItems.length}</span>
+              </Badge>
+              {user?.role === "master" && (
+                <Button
+                  onClick={() => deleteQueue(queue.id)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
-        )}
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Botões de Ação */}
-        {user?.role === "master" && (
-          <div className="space-y-2">
-            {!isAddingPerson ? (
-              <Button
-                onClick={() => setIsAddingPerson(true)}
-                variant="outline"
-                className="w-full"
-                disabled={availableUsers.length === 0}
-              >
-                <UserPlus className="h-4 w-4 mr-2" />
-                {availableUsers.length === 0 ? "Nenhum usuário disponível" : "Adicionar Pessoa"}
-              </Button>
+        <CardContent className="space-y-4">
+          {/* Fila Principal */}
+          <div>
+            <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center">
+              <Users className="h-4 w-4 mr-1" />
+              Fila ({approvedItems.length})
+            </h4>
+
+            {approvedItems.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center border-2 border-dashed border-gray-200 rounded-lg">
+                Fila vazia
+              </p>
             ) : (
-              <div className="space-y-2">
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um usuário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name} (@{user.username})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex space-x-2">
-                  <Button
-                    onClick={() => {
-                      setIsAddingPerson(false)
-                      setSelectedUserId("")
-                    }}
-                    variant="outline"
-                    className="flex-1 bg-transparent"
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {approvedItems.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-center justify-between p-2 rounded-lg border ${
+                      index === 0 ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"
+                    }`}
                   >
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleAddPerson} disabled={!selectedUserId || loading} className="flex-1">
-                    {loading ? "Adicionando..." : "Adicionar"}
-                  </Button>
-                </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium text-sm">{index + 1}º</span>
+                      <span className="text-sm">{item.name}</span>
+                      {index === 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          Próximo
+                        </Badge>
+                      )}
+                    </div>
+
+                    {user?.role === "master" && (
+                      <div className="flex items-center space-x-1">
+                        {/* Botão de Editar Posição */}
+                        <Button
+                          onClick={() => openPositionModal(item.id, item.position)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+
+                        {/* Botão "Pegou o item" - apenas para o primeiro */}
+                        {index === 0 && (
+                          <Button
+                            onClick={() => moveToEnd(queue.id, item.id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                        )}
+
+                        {/* Botão Remover */}
+                        <Button
+                          onClick={() => removePersonFromQueue(queue.id, item.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        )}
 
-        {/* Botão para usuário comum */}
-        {canUserJoin && (
-          <Button onClick={handleRequestJoin} disabled={loading} className="w-full">
-            <Plus className="h-4 w-4 mr-2" />
-            {loading ? "Solicitando..." : "Solicitar Entrada"}
-          </Button>
-        )}
-
-        {/* Abas - só aparecem para admin */}
-        {user?.role === "master" ? (
-          <Tabs defaultValue="approved" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="approved">Na Fila ({approvedItems.length})</TabsTrigger>
-              <TabsTrigger value="waiting">Aguardando ({waitingItems.length})</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="approved" className="space-y-2">
-              {approvedItems.length === 0 ? (
-                <p className="text-center text-gray-500 py-4">Fila vazia</p>
-              ) : (
-                approvedItems.map((item) => (
+          {/* Solicitações Pendentes */}
+          {pendingItems.length > 0 && (
+            <div>
+              <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center">
+                <Clock className="h-4 w-4 mr-1" />
+                Aguardando Aprovação ({pendingItems.length})
+              </h4>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {pendingItems.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
+                    className="flex items-center justify-between p-2 bg-yellow-50 border border-yellow-200 rounded-lg"
                   >
-                    <div className="flex items-center space-x-3">
-                      <Badge variant="outline" className="bg-green-100 text-green-800">
-                        {item.position}º
-                      </Badge>
-                      <span className="font-medium">{item.name}</span>
-                    </div>
-                    <div className="flex space-x-1">
-                      {item.position === 1 && (
+                    <span className="text-sm">{item.name}</span>
+                    {user?.role === "master" && (
+                      <div className="flex items-center space-x-1">
                         <Button
+                          onClick={() => approveRequest(queue.id, item.id)}
+                          variant="ghost"
                           size="sm"
-                          variant="outline"
-                          onClick={() => moveToEnd(queue.id, item.id)}
-                          className="h-8 w-8 p-0"
-                          title="Pegou o item (mover para o fim)"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
                         >
-                          <RotateCcw className="h-3 w-3" />
+                          <Check className="h-3 w-3" />
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => removePersonFromQueue(queue.id, item.id)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        title="Remover da fila"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
+                        <Button
+                          onClick={() => removePersonFromQueue(queue.id, item.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                ))
-              )}
-            </TabsContent>
+                ))}
+              </div>
+            </div>
+          )}
 
-            <TabsContent value="waiting" className="space-y-2">
-              {waitingItems.length === 0 ? (
-                <p className="text-center text-gray-500 py-4">Nenhuma solicitação pendente</p>
-              ) : (
-                waitingItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-                        Aguardando
-                      </Badge>
-                      <span className="font-medium">{item.name}</span>
-                    </div>
-                    <div className="flex space-x-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => approveRequest(queue.id, item.id)}
-                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                        title="Aprovar solicitação"
-                      >
-                        <Check className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => removePersonFromQueue(queue.id, item.id)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        title="Rejeitar solicitação"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
-        ) : (
-          // Visualização simples para usuários comuns
-          <div className="space-y-2">
-            <h3 className="font-medium text-sm text-gray-700">Pessoas na Fila</h3>
-            {approvedItems.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">Fila vazia</p>
+          {/* Botões de Ação */}
+          <div className="pt-2 border-t">
+            {user?.role === "master" ? (
+              <Button onClick={() => setIsAddPersonModalOpen(true)} variant="outline" className="w-full">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Adicionar Pessoa
+              </Button>
+            ) : user?.role === "user" && canJoinQueue(queue.id) ? (
+              <Button onClick={handleRequestJoin} variant="outline" className="w-full bg-transparent">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Solicitar Entrada
+              </Button>
+            ) : user?.role === "user" ? (
+              <Button variant="outline" disabled className="w-full bg-transparent">
+                Já está na fila
+              </Button>
             ) : (
-              approvedItems.map((item) => (
-                <div key={item.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
-                  <Badge variant="outline">{item.position}º</Badge>
-                  <span className="font-medium">{item.name}</span>
-                </div>
-              ))
+              <Button variant="outline" disabled className="w-full bg-transparent">
+                Faça login para entrar
+              </Button>
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Modal para Adicionar Pessoa */}
+      {isAddPersonModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-96 overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">Adicionar Pessoa à Fila</h3>
+            <div className="space-y-2 mb-4">
+              {users
+                .filter((u) => u.role === "user")
+                .map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => handleAddPerson(user.id)}
+                    disabled={loading}
+                    className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <div className="font-medium">{user.name}</div>
+                    <div className="text-sm text-gray-500">@{user.username}</div>
+                  </button>
+                ))}
+            </div>
+            <Button onClick={() => setIsAddPersonModalOpen(false)} variant="outline" className="w-full">
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Alterar Posição */}
+      {isPositionModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Alterar Posição</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nova Posição (1 a {approvedItems.length})
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={approvedItems.length}
+                  value={newPosition}
+                  onChange={(e) => setNewPosition(Number.parseInt(e.target.value) || 1)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Posição atual: {approvedItems.find((item) => item.id === selectedItemId)?.position}
+                </p>
+              </div>
+              <div className="flex space-x-3">
+                <Button
+                  onClick={() => {
+                    setIsPositionModalOpen(false)
+                    setSelectedItemId("")
+                    setNewPosition(1)
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleChangePosition}
+                  disabled={loading || newPosition < 1 || newPosition > approvedItems.length}
+                  className="flex-1"
+                >
+                  {loading ? "Alterando..." : "Alterar"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

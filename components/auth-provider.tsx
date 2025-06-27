@@ -37,6 +37,7 @@ interface AuthContextType {
   addPersonToQueue: (queueId: string, userId: string) => Promise<void>
   removePersonFromQueue: (queueId: string, itemId: string) => Promise<void>
   moveToEnd: (queueId: string, itemId: string) => Promise<void>
+  changePosition: (queueId: string, itemId: string, newPosition: number) => Promise<void>
   approveRequest: (queueId: string, itemId: string) => Promise<void>
   requestToJoinQueue: (queueId: string) => Promise<boolean>
   createQueue: (title: string) => Promise<void>
@@ -356,6 +357,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const changePosition = async (queueId: string, itemId: string, newPosition: number) => {
+    if (user?.role !== "master") return
+
+    try {
+      // Buscar item atual
+      const { data: currentItem } = await supabase.from("queue_items").select("*").eq("id", itemId).single()
+
+      if (!currentItem) return
+
+      const oldPosition = currentItem.position
+
+      // Se a posição não mudou, não fazer nada
+      if (oldPosition === newPosition) return
+
+      // Buscar todos os itens da fila para reordenar
+      const { data: allItems } = await supabase
+        .from("queue_items")
+        .select("id, position")
+        .eq("queue_id", queueId)
+        .eq("status", "approved")
+        .order("position", { ascending: true })
+
+      if (!allItems) return
+
+      // Reordenar as posições
+      if (oldPosition < newPosition) {
+        // Movendo para baixo: itens entre oldPosition+1 e newPosition sobem uma posição
+        for (const item of allItems) {
+          if (item.position > oldPosition && item.position <= newPosition && item.id !== itemId) {
+            await supabase
+              .from("queue_items")
+              .update({ position: item.position - 1 })
+              .eq("id", item.id)
+          }
+        }
+      } else {
+        // Movendo para cima: itens entre newPosition e oldPosition-1 descem uma posição
+        for (const item of allItems) {
+          if (item.position >= newPosition && item.position < oldPosition && item.id !== itemId) {
+            await supabase
+              .from("queue_items")
+              .update({ position: item.position + 1 })
+              .eq("id", item.id)
+          }
+        }
+      }
+
+      // Atualizar a posição do item movido
+      const { error: updateError } = await supabase
+        .from("queue_items")
+        .update({ position: newPosition })
+        .eq("id", itemId)
+
+      if (updateError) throw updateError
+      await refreshQueues()
+    } catch (error) {
+      console.error("Erro ao alterar posição:", error)
+    }
+  }
+
   const approveRequest = async (queueId: string, itemId: string) => {
     if (user?.role !== "master") return
 
@@ -537,6 +598,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         addPersonToQueue,
         removePersonFromQueue,
         moveToEnd,
+        changePosition,
         approveRequest,
         requestToJoinQueue,
         createQueue,
