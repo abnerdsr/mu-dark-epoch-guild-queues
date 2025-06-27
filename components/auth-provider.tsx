@@ -42,11 +42,13 @@ interface AuthContextType {
   requestToJoinQueue: (queueId: string) => Promise<boolean>
   createQueue: (title: string) => Promise<void>
   deleteQueue: (queueId: string) => Promise<void>
+  updateQueueTitle: (queueId: string, newTitle: string) => Promise<void>
   refreshQueues: () => Promise<void>
   refreshUsers: () => Promise<void>
   updateProfile: (name: string, password: string) => Promise<boolean>
   createUser: (name: string, username: string) => Promise<boolean>
   updateUser: (userId: string, name: string, username: string) => Promise<boolean>
+  updateUserRole: (userId: string, role: "master" | "user") => Promise<boolean>
   deleteUser: (userId: string) => Promise<void>
   canJoinQueue: (queueId: string) => boolean
 }
@@ -431,7 +433,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const canJoinQueue = (queueId: string): boolean => {
-    if (!user || user.role !== "user") return false
+    if (!user) return false
 
     // Verificar se o usuário já está em alguma fila desta queue
     const queue = queues.find((q) => q.id === queueId)
@@ -441,7 +443,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const requestToJoinQueue = async (queueId: string): Promise<boolean> => {
-    if (!user || user.role !== "user") return false
+    if (!user) return false
 
     try {
       // Verificar se já está na fila
@@ -464,7 +466,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           queue_id: queueId,
           name: user.name,
           position: nextPosition,
-          status: "waiting",
+          status: user.role === "master" ? "approved" : "waiting",
           requested_by: user.id,
         },
       ])
@@ -506,6 +508,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await refreshQueues()
     } catch (error) {
       console.error("Erro ao deletar fila:", error)
+    }
+  }
+
+  const updateQueueTitle = async (queueId: string, newTitle: string) => {
+    if (user?.role !== "master") return
+
+    try {
+      const { error } = await supabase.from("queues").update({ title: newTitle }).eq("id", queueId)
+
+      if (error) throw error
+      await refreshQueues()
+    } catch (error) {
+      console.error("Erro ao atualizar título da fila:", error)
     }
   }
 
@@ -569,6 +584,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateUserRole = async (userId: string, role: "master" | "user"): Promise<boolean> => {
+    if (user?.role !== "master") return false
+
+    try {
+      const { error } = await supabase.from("users").update({ role }).eq("id", userId)
+
+      if (error) throw error
+      await refreshUsers()
+      return true
+    } catch (error) {
+      console.error("Erro ao atualizar role do usuário:", error)
+      return false
+    }
+  }
+
   const deleteUser = async (userId: string) => {
     if (user?.role !== "master") return
 
@@ -603,11 +633,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         requestToJoinQueue,
         createQueue,
         deleteQueue,
+        updateQueueTitle,
         refreshQueues,
         refreshUsers,
         updateProfile,
         createUser,
         updateUser,
+        updateUserRole,
         deleteUser,
         canJoinQueue,
       }}
