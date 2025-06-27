@@ -3,14 +3,14 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Plus, Edit, Trash2, Shield, User } from "lucide-react"
+import { Trash2, Shield, User, Crown } from "lucide-react"
 
 interface UserManagementModalProps {
   isOpen: boolean
@@ -19,259 +19,237 @@ interface UserManagementModalProps {
 
 export function UserManagementModal({ isOpen, onClose }: UserManagementModalProps) {
   const { users, createUser, updateUser, updateUserRole, deleteUser } = useAuth()
-  const [isCreating, setIsCreating] = useState(false)
-  const [editingUser, setEditingUser] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
-    name: "",
-    username: "",
-  })
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const [newUser, setNewUser] = useState({ name: "", username: "" })
+  const [editingUser, setEditingUser] = useState<{ id: string; name: string; username: string } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-    setSuccess("")
-
-    if (!formData.name.trim() || !formData.username.trim()) {
-      setError("Nome e username são obrigatórios")
-      return
-    }
-
-    if (formData.username.includes(" ")) {
-      setError("Username não pode conter espaços")
-      return
-    }
-
     setLoading(true)
-    const result = await createUser(formData.name.trim(), formData.username.trim())
+    setError("")
 
-    if (result) {
-      setSuccess("Usuário criado com sucesso! Senha padrão: username")
-      setFormData({ name: "", username: "" })
-      setIsCreating(false)
-      setTimeout(() => setSuccess(""), 3000)
-    } else {
-      setError("Erro ao criar usuário. Username pode já existir.")
+    if (!newUser.name.trim() || !newUser.username.trim()) {
+      setError("Nome e username são obrigatórios")
+      setLoading(false)
+      return
     }
+
+    if (newUser.username.includes(" ")) {
+      setError("Username não pode conter espaços")
+      setLoading(false)
+      return
+    }
+
+    const success = await createUser(newUser.name.trim(), newUser.username.trim())
+    if (success) {
+      setNewUser({ name: "", username: "" })
+    } else {
+      setError("Erro ao criar usuário. Username pode já estar em uso.")
+    }
+
     setLoading(false)
   }
 
-  const handleUpdateUser = async (userId: string) => {
-    setError("")
-    setSuccess("")
-
-    if (!formData.name.trim() || !formData.username.trim()) {
-      setError("Nome e username são obrigatórios")
-      return
-    }
-
-    if (formData.username.includes(" ")) {
-      setError("Username não pode conter espaços")
-      return
-    }
+  const handleUpdateUser = async () => {
+    if (!editingUser) return
 
     setLoading(true)
-    const result = await updateUser(userId, formData.name.trim(), formData.username.trim())
+    setError("")
 
-    if (result) {
-      setSuccess("Usuário atualizado com sucesso!")
+    if (!editingUser.name.trim() || !editingUser.username.trim()) {
+      setError("Nome e username são obrigatórios")
+      setLoading(false)
+      return
+    }
+
+    if (editingUser.username.includes(" ")) {
+      setError("Username não pode conter espaços")
+      setLoading(false)
+      return
+    }
+
+    const success = await updateUser(editingUser.id, editingUser.name.trim(), editingUser.username.trim())
+    if (success) {
       setEditingUser(null)
-      setFormData({ name: "", username: "" })
-      setTimeout(() => setSuccess(""), 3000)
     } else {
       setError("Erro ao atualizar usuário")
     }
+
     setLoading(false)
   }
 
-  const handleUpdateRole = async (userId: string, newRole: "master" | "user") => {
-    setError("")
-    setSuccess("")
-
+  const handleRoleChange = async (userId: string, newRole: "master" | "user") => {
     setLoading(true)
-    const result = await updateUserRole(userId, newRole)
-
-    if (result) {
-      setSuccess(`Permissão alterada para ${newRole === "master" ? "Admin" : "Usuário"}!`)
-      setTimeout(() => setSuccess(""), 3000)
-    } else {
+    const success = await updateUserRole(userId, newRole)
+    if (!success) {
       setError("Erro ao alterar permissão")
     }
     setLoading(false)
   }
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Tem certeza que deseja excluir este usuário?")) return
-
-    setError("")
-    setSuccess("")
-
-    setLoading(true)
-    await deleteUser(userId)
-    setSuccess("Usuário excluído com sucesso!")
-    setTimeout(() => setSuccess(""), 3000)
-    setLoading(false)
-  }
-
-  const startEdit = (user: any) => {
-    setEditingUser(user.id)
-    setFormData({
-      name: user.name,
-      username: user.username,
-    })
-    setIsCreating(false)
-  }
-
-  const cancelEdit = () => {
-    setEditingUser(null)
-    setIsCreating(false)
-    setFormData({ name: "", username: "" })
-    setError("")
-  }
-
-  const handleClose = () => {
-    cancelEdit()
-    setSuccess("")
-    onClose()
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (confirm(`Tem certeza que deseja excluir o usuário "${userName}"?`)) {
+      setLoading(true)
+      await deleteUser(userId)
+      setLoading(false)
+    }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <Users className="h-5 w-5" />
-            <span>Gerenciar Usuários</span>
-          </DialogTitle>
+          <DialogTitle>Gerenciar Usuários</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Botão para criar novo usuário */}
-          {!isCreating && !editingUser && (
-            <Button onClick={() => setIsCreating(true)} className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
-              Criar Novo Usuário
-            </Button>
-          )}
-
-          {/* Formulário de criação/edição */}
-          {(isCreating || editingUser) && (
-            <form
-              onSubmit={
-                isCreating
-                  ? handleCreateUser
-                  : (e) => {
-                      e.preventDefault()
-                      if (editingUser) handleUpdateUser(editingUser)
-                    }
-              }
-              className="space-y-4 p-4 border rounded-lg bg-gray-50"
-            >
-              <h3 className="font-medium">{isCreating ? "Criar Novo Usuário" : "Editar Usuário"}</h3>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="user-name">Nome Completo</Label>
+        <div className="space-y-6">
+          {/* Criar Novo Usuário */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-medium mb-3">Criar Novo Usuário</h3>
+            <form onSubmit={handleCreateUser} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="new-name">Nome Completo</Label>
                   <Input
-                    id="user-name"
-                    value={formData.name}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                    required
+                    id="new-name"
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    placeholder="Nome completo"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="user-username">Username</Label>
+                <div>
+                  <Label htmlFor="new-username">Username</Label>
                   <Input
-                    id="user-username"
-                    value={formData.username}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
-                    required
+                    id="new-username"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    placeholder="Username (sem espaços)"
                   />
                 </div>
               </div>
-
-              {isCreating && <p className="text-xs text-gray-500">A senha padrão será o mesmo valor do username</p>}
-
-              <div className="flex space-x-2">
-                <Button type="button" variant="outline" onClick={cancelEdit} className="flex-1 bg-transparent">
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading} className="flex-1">
-                  {loading ? "Salvando..." : isCreating ? "Criar" : "Salvar"}
-                </Button>
-              </div>
+              <Button type="submit" disabled={loading} size="sm">
+                {loading ? "Criando..." : "Criar Usuário"}
+              </Button>
             </form>
-          )}
+            <p className="text-xs text-gray-500 mt-2">A senha padrão será o próprio username</p>
+          </div>
 
-          {/* Mensagens de erro e sucesso */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="border-green-200 bg-green-50">
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Lista de usuários */}
-          <div className="space-y-2">
-            <h3 className="font-medium">Usuários Cadastrados</h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+          {/* Lista de Usuários */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-medium mb-3">Usuários Existentes</h3>
+            <div className="space-y-3">
               {users.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-2">
-                      {user.role === "master" ? (
-                        <Shield className="h-4 w-4 text-blue-600" />
-                      ) : (
-                        <User className="h-4 w-4 text-gray-600" />
-                      )}
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-gray-500">@{user.username}</p>
-                      </div>
+                <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  {editingUser?.id === user.id ? (
+                    <div className="flex-1 grid grid-cols-2 gap-2 mr-3">
+                      <Input
+                        value={editingUser.name}
+                        onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                        placeholder="Nome"
+                      />
+                      <Input
+                        value={editingUser.username}
+                        onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+                        placeholder="Username"
+                      />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">{user.name}</span>
+                        <Badge variant={user.role === "master" ? "default" : "secondary"}>
+                          {user.role === "master" ? (
+                            <>
+                              <Crown className="h-3 w-3 mr-1" />
+                              Admin
+                            </>
+                          ) : (
+                            <>
+                              <User className="h-3 w-3 mr-1" />
+                              Usuário
+                            </>
+                          )}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-500">@{user.username}</p>
+                    </div>
+                  )}
 
                   <div className="flex items-center space-x-2">
-                    {/* Select para alterar role */}
-                    <Select
-                      value={user.role}
-                      onValueChange={(value: "master" | "user") => handleUpdateRole(user.id, value)}
-                      disabled={loading}
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user">Usuário</SelectItem>
-                        <SelectItem value="master">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {editingUser?.id === user.id ? (
+                      <>
+                        <Button onClick={handleUpdateUser} disabled={loading} size="sm" variant="outline">
+                          Salvar
+                        </Button>
+                        <Button onClick={() => setEditingUser(null)} size="sm" variant="outline">
+                          Cancelar
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Alterar Role */}
+                        <Select
+                          value={user.role}
+                          onValueChange={(value: "master" | "user") => handleRoleChange(user.id, value)}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="user">
+                              <div className="flex items-center">
+                                <User className="h-4 w-4 mr-2" />
+                                Usuário
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="master">
+                              <div className="flex items-center">
+                                <Crown className="h-4 w-4 mr-2" />
+                                Admin
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
 
-                    <Button onClick={() => startEdit(user)} variant="outline" size="sm" disabled={loading}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                        {/* Editar */}
+                        <Button
+                          onClick={() =>
+                            setEditingUser({
+                              id: user.id,
+                              name: user.name,
+                              username: user.username,
+                            })
+                          }
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Shield className="h-4 w-4" />
+                        </Button>
 
-                    <Button
-                      onClick={() => handleDeleteUser(user.id)}
-                      variant="outline"
-                      size="sm"
-                      disabled={loading}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                        {/* Excluir */}
+                        <Button
+                          onClick={() => handleDeleteUser(user.id, user.name)}
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="flex justify-end">
+            <Button onClick={onClose} variant="outline">
+              Fechar
+            </Button>
           </div>
         </div>
       </DialogContent>

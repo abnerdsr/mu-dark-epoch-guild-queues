@@ -4,21 +4,13 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/auth-provider"
-import {
-  MoreVertical,
-  UserPlus,
-  Check,
-  X,
-  ArrowDown,
-  ArrowUpDown,
-  Trash2,
-  Edit3,
-  Crown,
-  AlertTriangle,
-} from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MoreVertical, Plus, UserPlus, Check, X, RotateCcw, Trash2, ArrowUpDown, Edit, Crown } from "lucide-react"
 
 interface QueueCardProps {
   queue: {
@@ -51,358 +43,417 @@ export function QueueCard({ queue }: QueueCardProps) {
 
   const [isAddingPerson, setIsAddingPerson] = useState(false)
   const [selectedUserId, setSelectedUserId] = useState("")
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [editTitle, setEditTitle] = useState(queue.title)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [editingPosition, setEditingPosition] = useState<string | null>(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [editingPosition, setEditingPosition] = useState<{ itemId: string; currentPosition: number } | null>(null)
   const [newPosition, setNewPosition] = useState("")
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [newTitle, setNewTitle] = useState(queue.title)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  // Separar itens por status
   const approvedItems = queue.items.filter((item) => item.status === "approved").sort((a, b) => a.position - b.position)
-  const waitingItems = queue.items.filter((item) => item.status === "waiting")
+  const waitingItems = queue.items.filter((item) => item.status === "waiting").sort((a, b) => a.position - b.position)
+
+  // Usuários disponíveis para adicionar (que não estão na fila) - incluindo admins
+  const availableUsers = users.filter((u) => !queue.items.some((item) => item.requestedBy === u.id))
 
   const handleAddPerson = async () => {
     if (!selectedUserId) return
 
+    setLoading(true)
     try {
       await addPersonToQueue(queue.id, selectedUserId)
-      setIsAddingPerson(false)
       setSelectedUserId("")
+      setIsAddingPerson(false)
     } catch (error) {
-      alert("Erro ao adicionar pessoa: " + (error as Error).message)
+      console.error("Erro ao adicionar pessoa:", error)
     }
+    setLoading(false)
   }
 
-  const handleJoinQueue = async () => {
-    const success = await requestToJoinQueue(queue.id)
-    if (!success) {
-      alert("Não foi possível entrar na fila")
-    }
-  }
-
-  const handleSaveTitle = async () => {
-    if (editTitle.trim() && editTitle.trim() !== queue.title) {
-      await updateQueueTitle(queue.id, editTitle.trim())
-    }
-    setIsEditingTitle(false)
-  }
-
-  const handleCancelEditTitle = () => {
-    setEditTitle(queue.title)
-    setIsEditingTitle(false)
+  const handleRequestJoin = async () => {
+    setLoading(true)
+    await requestToJoinQueue(queue.id)
+    setLoading(false)
   }
 
   const handleDeleteQueue = async () => {
     await deleteQueue(queue.id)
     setShowDeleteConfirm(false)
+    setShowMenu(false)
   }
 
-  const handleChangePosition = async (itemId: string) => {
-    const pos = Number.parseInt(newPosition)
-    if (pos >= 1 && pos <= approvedItems.length) {
-      await changePosition(queue.id, itemId, pos)
-      setEditingPosition(null)
-      setNewPosition("")
+  const handleUpdateTitle = async () => {
+    if (!newTitle.trim() || newTitle.trim() === queue.title) {
+      setIsEditingTitle(false)
+      setNewTitle(queue.title)
+      return
     }
+
+    setLoading(true)
+    await updateQueueTitle(queue.id, newTitle.trim())
+    setIsEditingTitle(false)
+    setLoading(false)
   }
 
-  const getUserById = (userId: string) => {
-    return users.find((u) => u.id === userId)
+  const handleEditPosition = (itemId: string, currentPosition: number) => {
+    setEditingPosition({ itemId, currentPosition })
+    setNewPosition(currentPosition.toString())
   }
 
-  const availableUsers = users.filter((u) => !queue.items.some((item) => item.requestedBy === u.id))
+  const handleSavePosition = async () => {
+    if (!editingPosition) return
+
+    const position = Number.parseInt(newPosition)
+    if (isNaN(position) || position < 1 || position > approvedItems.length) {
+      alert(`Posição deve ser entre 1 e ${approvedItems.length}`)
+      return
+    }
+
+    setLoading(true)
+    await changePosition(queue.id, editingPosition.itemId, position)
+    setEditingPosition(null)
+    setNewPosition("")
+    setLoading(false)
+  }
+
+  const handleCancelEditPosition = () => {
+    setEditingPosition(null)
+    setNewPosition("")
+  }
+
+  const canUserJoin = user && canJoinQueue(queue.id)
 
   return (
     <>
-      <Card className="w-full">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div className="flex-1">
-            {isEditingTitle ? (
-              <div className="flex items-center space-x-2">
-                <Input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveTitle()
-                    if (e.key === "Escape") handleCancelEditTitle()
-                  }}
-                  className="text-lg font-semibold"
-                  autoFocus
-                />
-                <Button onClick={handleSaveTitle} size="sm" variant="outline">
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button onClick={handleCancelEditTitle} size="sm" variant="outline">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <CardTitle className="text-lg">{queue.title}</CardTitle>
-            )}
-          </div>
+      <Card className="h-fit">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          {isEditingTitle ? (
+            <div className="flex-1 flex items-center space-x-2">
+              <Input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="text-lg font-semibold"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleUpdateTitle()
+                  if (e.key === "Escape") {
+                    setIsEditingTitle(false)
+                    setNewTitle(queue.title)
+                  }
+                }}
+                autoFocus
+              />
+              <Button onClick={handleUpdateTitle} size="sm" disabled={loading}>
+                {loading ? "..." : "✓"}
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsEditingTitle(false)
+                  setNewTitle(queue.title)
+                }}
+                variant="outline"
+                size="sm"
+              >
+                ✕
+              </Button>
+            </div>
+          ) : (
+            <CardTitle className="text-lg">{queue.title}</CardTitle>
+          )}
 
           {user?.role === "master" && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setIsEditingTitle(true)}>
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Editar Nome
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowDeleteConfirm(true)} className="text-red-600">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir Fila
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="relative">
+              <Button variant="ghost" size="sm" onClick={() => setShowMenu(!showMenu)} className="h-8 w-8 p-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-20">
+                    <button
+                      onClick={() => {
+                        setIsEditingTitle(true)
+                        setShowMenu(false)
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Editar Nome
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirm(true)
+                        setShowMenu(false)
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir Fila
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Fila Principal */}
-          <div>
-            <h4 className="font-medium mb-2 flex items-center">Fila ({approvedItems.length} pessoas)</h4>
+          {/* Botões de Ação */}
+          {user?.role === "master" && (
             <div className="space-y-2">
-              {approvedItems.length === 0 ? (
-                <p className="text-gray-500 text-sm">Nenhuma pessoa na fila</p>
+              {!isAddingPerson ? (
+                <Button
+                  onClick={() => setIsAddingPerson(true)}
+                  variant="outline"
+                  className="w-full"
+                  disabled={availableUsers.length === 0}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {availableUsers.length === 0 ? "Nenhum usuário disponível" : "Adicionar Pessoa"}
+                </Button>
               ) : (
-                approvedItems.map((item, index) => {
-                  const itemUser = getUserById(item.requestedBy)
-                  return (
-                    <div
-                      key={item.id}
-                      className={`flex items-center justify-between p-2 rounded border ${
-                        index === 0 ? "bg-green-50 border-green-200" : "bg-gray-50"
-                      }`}
+                <div className="space-y-2">
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um usuário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} (@{user.username}) {user.role === "master" && "👑"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => {
+                        setIsAddingPerson(false)
+                        setSelectedUserId("")
+                      }}
+                      variant="outline"
+                      className="flex-1 bg-transparent"
                     >
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-sm">#{item.position}</span>
-                        <span className="flex items-center space-x-1">
-                          <span>{item.name}</span>
-                          {itemUser?.role === "master" && <Crown className="h-4 w-4 text-yellow-500" title="Admin" />}
-                        </span>
-                        {index === 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            Próximo
-                          </Badge>
-                        )}
-                      </div>
-
-                      {user?.role === "master" && (
-                        <div className="flex items-center space-x-1">
-                          {/* Botão para editar posição */}
-                          {editingPosition === item.id ? (
-                            <div className="flex items-center space-x-1">
-                              <Input
-                                type="number"
-                                min="1"
-                                max={approvedItems.length}
-                                value={newPosition}
-                                onChange={(e) => setNewPosition(e.target.value)}
-                                className="w-16 h-8 text-xs"
-                                placeholder={item.position.toString()}
-                              />
-                              <Button
-                                onClick={() => handleChangePosition(item.id)}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0"
-                              >
-                                <Check className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  setEditingPosition(null)
-                                  setNewPosition("")
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              onClick={() => {
-                                setEditingPosition(item.id)
-                                setNewPosition(item.position.toString())
-                              }}
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0"
-                              title="Editar posição"
-                            >
-                              <ArrowUpDown className="h-3 w-3" />
-                            </Button>
-                          )}
-
-                          {index === 0 && (
-                            <Button
-                              onClick={() => moveToEnd(queue.id, item.id)}
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0"
-                              title="Pegou o item"
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </Button>
-                          )}
-
-                          <Button
-                            onClick={() => removePersonFromQueue(queue.id, item.id)}
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                            title="Remover da fila"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAddPerson} disabled={!selectedUserId || loading} className="flex-1">
+                      {loading ? "Adicionando..." : "Adicionar"}
+                    </Button>
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
-
-          {/* Solicitações Pendentes */}
-          {waitingItems.length > 0 && (
-            <div>
-              <h4 className="font-medium mb-2 text-orange-600">Aguardando Aprovação ({waitingItems.length})</h4>
-              <div className="space-y-2">
-                {waitingItems.map((item) => {
-                  const itemUser = getUserById(item.requestedBy)
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-2 rounded border bg-orange-50 border-orange-200"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span className="flex items-center space-x-1">
-                          <span>{item.name}</span>
-                          {itemUser?.role === "master" && <Crown className="h-4 w-4 text-yellow-500" title="Admin" />}
-                        </span>
-                        <Badge variant="outline" className="text-xs text-orange-600">
-                          Aguardando
-                        </Badge>
-                      </div>
-
-                      {user?.role === "master" && (
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            onClick={() => approveRequest(queue.id, item.id)}
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                            title="Aprovar"
-                          >
-                            <Check className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            onClick={() => removePersonFromQueue(queue.id, item.id)}
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                            title="Rejeitar"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
             </div>
           )}
 
-          {/* Ações */}
-          <div className="pt-2 border-t">
-            {user?.role === "master" && (
-              <>
-                {isAddingPerson ? (
-                  <div className="space-y-2">
-                    <select
-                      value={selectedUserId}
-                      onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="w-full p-2 border rounded text-sm"
-                    >
-                      <option value="">Selecione uma pessoa</option>
-                      {availableUsers.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} (@{u.username}) {u.role === "master" ? "👑" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex space-x-2">
-                      <Button onClick={handleAddPerson} disabled={!selectedUserId} size="sm" className="flex-1">
-                        Adicionar
-                      </Button>
-                      <Button onClick={() => setIsAddingPerson(false)} variant="outline" size="sm" className="flex-1">
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
+          {/* Botão para usuário comum e admin */}
+          {canUserJoin && (
+            <Button onClick={handleRequestJoin} disabled={loading} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              {loading ? "Solicitando..." : user?.role === "master" ? "Entrar na Fila" : "Solicitar Entrada"}
+            </Button>
+          )}
+
+          {/* Abas - só aparecem para admin */}
+          {user?.role === "master" ? (
+            <Tabs defaultValue="approved" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="approved">Na Fila ({approvedItems.length})</TabsTrigger>
+                <TabsTrigger value="waiting">Aguardando ({waitingItems.length})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="approved" className="space-y-2">
+                {approvedItems.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">Fila vazia</p>
                 ) : (
-                  <Button onClick={() => setIsAddingPerson(true)} variant="outline" size="sm" className="w-full">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Adicionar Pessoa
-                  </Button>
+                  approvedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Badge variant="outline" className="bg-green-100 text-green-800">
+                          {item.position}º
+                        </Badge>
+                        <span className="font-medium">{item.name}</span>
+                        {users.find((u) => u.id === item.requestedBy)?.role === "master" && (
+                          <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                        )}
+                      </div>
+                      <div className="flex space-x-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditPosition(item.id, item.position)}
+                          className="h-8 w-8 p-0"
+                          title="Editar posição"
+                        >
+                          <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                        {item.position === 1 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => moveToEnd(queue.id, item.id)}
+                            className="h-8 w-8 p-0"
+                            title="Pegou o item (mover para o fim)"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removePersonFromQueue(queue.id, item.id)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          title="Remover da fila"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
                 )}
-              </>
-            )}
+              </TabsContent>
 
-            {user && user.role !== "master" && canJoinQueue(queue.id) && (
-              <Button onClick={handleJoinQueue} variant="outline" size="sm" className="w-full bg-transparent">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Solicitar Entrada
-              </Button>
-            )}
-
-            {user && user.role === "master" && canJoinQueue(queue.id) && (
-              <Button onClick={handleJoinQueue} variant="outline" size="sm" className="w-full mt-2 bg-transparent">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Entrar na Fila
-              </Button>
-            )}
-          </div>
+              <TabsContent value="waiting" className="space-y-2">
+                {waitingItems.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">Nenhuma solicitação pendente</p>
+                ) : (
+                  waitingItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                          Aguardando
+                        </Badge>
+                        <span className="font-medium">{item.name}</span>
+                        {users.find((u) => u.id === item.requestedBy)?.role === "master" && (
+                          <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                        )}
+                      </div>
+                      <div className="flex space-x-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => approveRequest(queue.id, item.id)}
+                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                          title="Aprovar solicitação"
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removePersonFromQueue(queue.id, item.id)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          title="Rejeitar solicitação"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
+          ) : (
+            // Visualização simples para usuários comuns
+            <div className="space-y-2">
+              <h3 className="font-medium text-sm text-gray-700">Pessoas na Fila</h3>
+              {approvedItems.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">Fila vazia</p>
+              ) : (
+                approvedItems.map((item) => (
+                  <div key={item.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
+                    <Badge variant="outline">{item.position}º</Badge>
+                    <span className="font-medium">{item.name}</span>
+                    {users.find((u) => u.id === item.requestedBy)?.role === "master" && (
+                      <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                    )}
+                    {item.requestedBy === user?.id && (
+                      <Badge variant="secondary" className="ml-auto">
+                        Você
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Modal de Confirmação de Exclusão */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center space-x-3 mb-4">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-              <h2 className="text-lg font-semibold">Confirmar Exclusão</h2>
-            </div>
+      {/* Modal para editar posição */}
+      <Dialog open={!!editingPosition} onOpenChange={handleCancelEditPosition}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Posição na Fila</DialogTitle>
+          </DialogHeader>
 
-            <p className="text-gray-700 mb-2">Tem certeza que deseja excluir a fila:</p>
-            <p className="font-semibold text-gray-900 mb-4">"{queue.title}"</p>
-
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-              <p className="text-red-800 text-sm">
-                ⚠️ Esta ação não pode ser desfeita. Todas as pessoas na fila serão removidas.
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-position">Nova Posição</Label>
+              <Input
+                id="new-position"
+                type="number"
+                min="1"
+                max={approvedItems.length}
+                value={newPosition}
+                onChange={(e) => setNewPosition(e.target.value)}
+                placeholder={`Entre 1 e ${approvedItems.length}`}
+              />
+              <p className="text-xs text-gray-500">
+                Posição atual: {editingPosition?.currentPosition}º | Total de pessoas: {approvedItems.length}
               </p>
             </div>
 
-            <div className="flex space-x-3">
-              <Button onClick={() => setShowDeleteConfirm(false)} variant="outline" className="flex-1">
+            <div className="flex space-x-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelEditPosition}
+                className="flex-1 bg-transparent"
+              >
                 Cancelar
               </Button>
-              <Button onClick={handleDeleteQueue} variant="destructive" className="flex-1">
-                Excluir Fila
+              <Button onClick={handleSavePosition} disabled={loading} className="flex-1">
+                {loading ? "Salvando..." : "Salvar"}
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de confirmação para excluir fila */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Tem certeza que deseja excluir a fila <strong>"{queue.title}"</strong>?
+            </p>
+            <p className="text-sm text-red-600">
+              Esta ação não pode ser desfeita. Todas as pessoas na fila serão removidas.
+            </p>
+
+            <div className="flex space-x-2">
+              <Button type="button" variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={handleDeleteQueue} disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700">
+                {loading ? "Excluindo..." : "Excluir Fila"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
