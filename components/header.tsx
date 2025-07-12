@@ -32,15 +32,11 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-mu-electric to-mu-lightning p-2">
-              <svg
-                className="w-6 h-6 text-mu-dark"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M13 0L11 8L18 8L6 24L8 16L1 16L13 0Z" />
-              </svg>
-            </div>
+            <img
+              src="https://gimages.37games.com/aws_s3/img?s=/platform/one_image/2024/08/172500482028418889.png"
+              alt="MU Dark Epoch Logo"
+              className="w-16 h-16 object-contain"
+            />
             <div>
               <h1 className="text-xl font-bold text-foreground mu-text-glow">MU Dark Epoch</h1>
               <div className="flex items-center space-x-2">
