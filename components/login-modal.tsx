@@ -68,9 +68,9 @@ export function LoginModal() {
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md mu-card-glow">
         <DialogHeader>
-          <DialogTitle>Acesso ao Sistema</DialogTitle>
+          <DialogTitle className="mu-text-glow">Acesso ao Sistema</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="login" className="w-full">
@@ -108,7 +108,7 @@ export function LoginModal() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground mu-button-glow"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -116,9 +116,9 @@ export function LoginModal() {
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
 
-              <Button type="submit" disabled={loading} className="w-full">
+              <Button type="submit" disabled={loading} className="w-full mu-button-glow">
                 {loading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
@@ -148,7 +148,7 @@ export function LoginModal() {
                   placeholder="Digite um username (sem espaços)"
                   required
                 />
-                <p className="text-xs text-gray-500">Username não pode conter espaços</p>
+                <p className="text-xs text-muted-foreground">Username não pode conter espaços</p>
               </div>
 
               <div className="space-y-2">
@@ -166,7 +166,7 @@ export function LoginModal() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground mu-button-glow"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -174,9 +174,9 @@ export function LoginModal() {
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
 
-              <Button type="submit" disabled={loading} className="w-full">
+              <Button type="submit" disabled={loading} className="w-full mu-button-glow">
                 {loading ? "Criando conta..." : "Criar Conta"}
               </Button>
             </form>

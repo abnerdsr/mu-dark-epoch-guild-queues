@@ -14,6 +14,7 @@ body {
 
 @layer base {
   :root {
+    /* Light theme (fallback) */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -48,39 +49,50 @@ body {
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* MU Dark Epoch Theme */
+    --background: 222 84% 4.9%; /* Very dark blue background */
+    --foreground: 210 40% 98%; /* Light blue-white text */
+    --card: 225 84% 8%; /* Dark blue card background */
+    --card-foreground: 210 40% 98%; /* Light blue-white text */
+    --popover: 225 84% 8%; /* Dark blue popover */
+    --popover-foreground: 210 40% 98%; /* Light blue-white text */
+    --primary: 199 89% 48%; /* Electric blue primary */
+    --primary-foreground: 222 84% 4.9%; /* Dark blue text on primary */
+    --secondary: 217 32% 17%; /* Slightly lighter blue */
+    --secondary-foreground: 210 40% 98%; /* Light blue-white text */
+    --muted: 217 32% 15%; /* Muted blue */
+    --muted-foreground: 215 20.2% 65.1%; /* Muted text */
+    --accent: 199 89% 48%; /* Electric blue accent */
+    --accent-foreground: 222 84% 4.9%; /* Dark blue text on accent */
+    --destructive: 0 62.8% 30.6%; /* Red for destructive actions */
+    --destructive-foreground: 210 40% 98%; /* Light text on destructive */
+    --border: 217 32% 17%; /* Border color */
+    --input: 217 32% 17%; /* Input background */
+    --ring: 199 89% 48%; /* Electric blue ring */
+    --chart-1: 199 89% 48%; /* Electric blue */
+    --chart-2: 43 96% 56%; /* Gold/bronze */
+    --chart-3: 142 76% 36%; /* Green */
+    --chart-4: 280 65% 60%; /* Purple */
+    --chart-5: 340 75% 55%; /* Pink */
+    --sidebar-background: 222 84% 4.9%; /* Dark blue sidebar */
+    --sidebar-foreground: 210 40% 98%; /* Light text */
+    --sidebar-primary: 199 89% 48%; /* Electric blue primary */
+    --sidebar-primary-foreground: 222 84% 4.9%; /* Dark text on primary */
+    --sidebar-accent: 217 32% 17%; /* Accent */
+    --sidebar-accent-foreground: 210 40% 98%; /* Light text on accent */
+    --sidebar-border: 217 32% 17%; /* Border */
+    --sidebar-ring: 199 89% 48%; /* Electric blue ring */
+
+    /* Custom MU Dark Epoch colors */
+    --mu-electric-blue: 199 89% 48%; /* Main electric blue */
+    --mu-dark-blue: 222 84% 4.9%; /* Main dark background */
+    --mu-gold: 43 96% 56%; /* Gold accents */
+    --mu-bronze: 30 85% 55%; /* Bronze accents */
+    --mu-lightning: 199 100% 70%; /* Bright lightning effect */
+    --mu-glow: 199 89% 48%; /* Glow effect */
+    --mu-dark-red: 0 70% 25%; /* Dark red for selected tabs */
   }
 }
 
@@ -90,5 +102,143 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* MU Dark Epoch Custom Utilities */
+@layer utilities {
+  .mu-electric-glow {
+    box-shadow: 0 0 10px hsl(var(--mu-electric-blue));
+  }
+
+  .mu-electric-glow-strong {
+    box-shadow: 0 0 20px hsl(var(--mu-electric-blue)),
+      0 0 40px hsl(var(--mu-electric-blue));
+  }
+
+  .mu-text-glow {
+    text-shadow: 0 0 10px hsl(var(--mu-electric-blue));
+  }
+
+  .mu-text-glow-strong {
+    text-shadow: 0 0 10px hsl(var(--mu-electric-blue)),
+      0 0 20px hsl(var(--mu-electric-blue));
+  }
+
+  .mu-border-glow {
+    border: 1px solid rgba(199, 142, 66, 0.6);
+    box-shadow: 0 0 3px rgba(199, 142, 66, 0.3);
+  }
+
+  .mu-button-glow {
+    background: linear-gradient(145deg, #e6c547 0%, #cd9a1b 50%, #9b7524 100%);
+    border: 2px solid #9b7524;
+    color: #0f0a07;
+    font-weight: 700;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3);
+    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.3),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mu-button-glow:hover {
+    background: linear-gradient(145deg, #f0d558 0%, #d4af37 50%, #a68734 100%);
+    border-color: #a68734;
+    color: #0f0a07;
+    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.4),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.15), 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .mu-button-glow:active {
+    background: linear-gradient(145deg, #b8860b 0%, #8b6914 50%, #6b5011 100%);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .mu-button-glow:disabled {
+    background: linear-gradient(145deg, #8a7c5c 0%, #6b6349 50%, #544f3a 100%);
+    color: #3a3a3a;
+    border-color: #544f3a;
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .mu-button-glow[data-state="active"] {
+    color: hsl(var(--mu-dark-red)) !important;
+  }
+
+  /* More specific selector for tabs */
+  [data-state="active"].mu-button-glow {
+    color: hsl(var(--mu-dark-red)) !important;
+  }
+
+  .mu-card-glow {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card)),
+      hsl(var(--secondary))
+    );
+    border: 1px solid hsl(var(--mu-electric-blue));
+    box-shadow: 0 0 10px hsl(var(--mu-electric-blue));
+  }
+
+  .mu-bg-electric-pattern {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--background)),
+      hsl(var(--secondary))
+    );
+  }
+
+  .mu-ambient-glow {
+    position: relative;
+  }
+
+  .mu-ambient-glow::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(
+      circle at 50% 50%,
+      hsl(var(--mu-electric-blue)) / 0.1 0%,
+      transparent 70%
+    );
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .mu-lightning-effect {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mu-lightning-effect::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      45deg,
+      transparent 30%,
+      hsl(var(--mu-electric-blue)) / 0.1 50%,
+      transparent 70%
+    );
+    animation: lightning-sweep 4s linear infinite;
+    pointer-events: none;
+  }
+
+  @keyframes lightning-sweep {
+    0% {
+      transform: translateX(-100%) translateY(-100%);
+    }
+    100% {
+      transform: translateX(100%) translateY(100%);
+    }
   }
 }

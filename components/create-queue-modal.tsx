@@ -57,9 +57,9 @@ export function CreateQueueModal({ isOpen, onClose }: CreateQueueModalProps) {
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md mu-card-glow">
         <DialogHeader>
-          <DialogTitle>Criar Nova Fila</DialogTitle>
+          <DialogTitle className="mu-text-glow">Criar Nova Fila</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,13 +76,13 @@ export function CreateQueueModal({ isOpen, onClose }: CreateQueueModalProps) {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex space-x-2">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 mu-button-glow">
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
+            <Button type="submit" disabled={loading} className="flex-1 mu-button-glow">
               {loading ? "Criando..." : "Criar Fila"}
             </Button>
           </div>
