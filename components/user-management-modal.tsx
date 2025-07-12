@@ -98,15 +98,15 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto mu-card-glow">
         <DialogHeader>
-          <DialogTitle>Gerenciar Usuários</DialogTitle>
+          <DialogTitle className="mu-text-glow">Gerenciar Usuários</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Criar Novo Usuário */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-3">Criar Novo Usuário</h3>
+          <div className="border border-mu-electric rounded-lg p-4 mu-electric-glow">
+            <h3 className="font-medium mb-3 mu-text-glow">Criar Novo Usuário</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -128,19 +128,19 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                   />
                 </div>
               </div>
-              <Button type="submit" disabled={loading} size="sm">
+              <Button type="submit" disabled={loading} size="sm" className="mu-button-glow">
                 {loading ? "Criando..." : "Criar Usuário"}
               </Button>
             </form>
-            <p className="text-xs text-gray-500 mt-2">A senha padrão será o próprio username</p>
+            <p className="text-xs text-muted-foreground mt-2">A senha padrão será o próprio username</p>
           </div>
 
           {/* Lista de Usuários */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-3">Usuários Existentes</h3>
+          <div className="border border-mu-electric rounded-lg p-4 mu-electric-glow">
+            <h3 className="font-medium mb-3 mu-text-glow">Usuários Existentes</h3>
             <div className="space-y-3">
               {users.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={user.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg border border-mu-electric mu-electric-glow">
                   {editingUser?.id === user.id ? (
                     <div className="flex-1 grid grid-cols-2 gap-2 mr-3">
                       <Input
@@ -158,7 +158,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
                         <span className="font-medium">{user.name}</span>
-                        <Badge variant={user.role === "master" ? "default" : "secondary"}>
+                        <Badge variant={user.role === "master" ? "default" : "secondary"} className={user.role === "master" ? "bg-mu-gold text-mu-dark" : "bg-mu-electric text-mu-dark"}>
                           {user.role === "master" ? (
                             <>
                               <Crown className="h-3 w-3 mr-1" />
@@ -172,17 +172,17 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                           )}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-500">@{user.username}</p>
+                      <p className="text-sm text-muted-foreground">@{user.username}</p>
                     </div>
                   )}
 
                   <div className="flex items-center space-x-2">
                     {editingUser?.id === user.id ? (
                       <>
-                        <Button onClick={handleUpdateUser} disabled={loading} size="sm" variant="outline">
+                        <Button onClick={handleUpdateUser} disabled={loading} size="sm" variant="outline" className="mu-button-glow">
                           Salvar
                         </Button>
-                        <Button onClick={() => setEditingUser(null)} size="sm" variant="outline">
+                        <Button onClick={() => setEditingUser(null)} size="sm" variant="outline" className="mu-button-glow">
                           Cancelar
                         </Button>
                       </>
@@ -193,7 +193,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                           value={user.role}
                           onValueChange={(value: "master" | "user") => handleRoleChange(user.id, value)}
                         >
-                          <SelectTrigger className="w-32">
+                          <SelectTrigger className="w-32 mu-border-glow">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -223,6 +223,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                           }
                           size="sm"
                           variant="outline"
+                          className="mu-button-glow"
                         >
                           <Shield className="h-4 w-4" />
                         </Button>
@@ -232,7 +233,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                           onClick={() => handleDeleteUser(user.id, user.name)}
                           size="sm"
                           variant="outline"
-                          className="text-red-600 hover:text-red-700"
+                          className="text-destructive hover:text-destructive mu-border-glow hover:bg-destructive/10"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -244,10 +245,10 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex justify-end">
-            <Button onClick={onClose} variant="outline">
+            <Button onClick={onClose} variant="outline" className="mu-button-glow">
               Fechar
             </Button>
           </div>

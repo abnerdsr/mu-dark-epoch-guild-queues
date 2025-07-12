@@ -16,13 +16,19 @@ export default function Home() {
 
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background relative">
+        {/* Subtle background effects */}
+        <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute top-20 left-10 w-64 h-64 bg-gradient-to-br from-mu-electric/10 to-transparent rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-20 w-48 h-48 bg-gradient-to-bl from-mu-gold/8 to-transparent rounded-full blur-2xl"></div>
+        </div>
+
         <Header
           onOpenCreateQueue={() => setIsCreateQueueOpen(true)}
           onOpenUserManagement={() => setIsUserManagementOpen(true)}
           onOpenProfile={() => setIsProfileModalOpen(true)}
         />
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-8 relative z-10">
           <QueueGrid />
         </main>
 

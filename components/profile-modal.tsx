@@ -75,9 +75,9 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md mu-card-glow">
         <DialogHeader>
-          <DialogTitle>Editar Perfil</DialogTitle>
+          <DialogTitle className="mu-text-glow">Editar Perfil</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -95,8 +95,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
           <div className="space-y-2">
             <Label htmlFor="profile-username">Username</Label>
-            <Input id="profile-username" type="text" value={user?.username || ""} disabled className="bg-gray-100" />
-            <p className="text-xs text-gray-500">Username não pode ser alterado</p>
+            <Input id="profile-username" type="text" value={user?.username || ""} disabled className="bg-muted" />
+            <p className="text-xs text-muted-foreground">Username não pode ser alterado</p>
           </div>
 
           <div className="space-y-2">
@@ -114,7 +114,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground mu-button-glow"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -122,14 +122,14 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {success && <p className="text-sm text-green-600">Perfil atualizado com sucesso!</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {success && <p className="text-sm text-green-400">Perfil atualizado com sucesso!</p>}
 
           <div className="flex space-x-2">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 mu-button-glow">
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
+            <Button type="submit" disabled={loading} className="flex-1 mu-button-glow">
               {loading ? "Salvando..." : "Salvar"}
             </Button>
           </div>

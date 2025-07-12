@@ -28,10 +28,28 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 py-3">
+    <header className="bg-card border-b border-border px-4 py-3 mu-border-glow">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold text-gray-900">Sistema de Filas</h1>
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-mu-electric to-mu-lightning p-2">
+              <svg
+                className="w-6 h-6 text-mu-dark"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M13 0L11 8L18 8L6 24L8 16L1 16L13 0Z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground mu-text-glow">MU Dark Epoch</h1>
+              <div className="flex items-center space-x-2">
+                <p className="text-xs text-mu-electric font-medium">Guild Queue System</p>
+                <div className="w-1 h-1 bg-mu-electric rounded-full"></div>
+                <p className="text-xs text-mu-gold font-medium">v2.0</p>
+              </div>
+            </div>
+          </div>
 
           {/* Botão de Refresh - Disponível para todos */}
           <Button
@@ -39,7 +57,7 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
             variant="outline"
             size="sm"
             disabled={isRefreshing}
-            className="flex items-center space-x-2 bg-transparent"
+            className="flex items-center space-x-2 mu-button-glow"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>{isRefreshing ? "Atualizando..." : "Atualizar"}</span>
@@ -51,11 +69,11 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
             <>
               {user.role === "master" && (
                 <>
-                  <Button variant="outline" size="sm" onClick={onOpenCreateQueue}>
+                  <Button variant="outline" size="sm" onClick={onOpenCreateQueue} className="mu-button-glow">
                     <Plus className="h-4 w-4 mr-2" />
                     Nova Fila
                   </Button>
-                  <Button variant="outline" size="sm" onClick={onOpenUserManagement}>
+                  <Button variant="outline" size="sm" onClick={onOpenUserManagement} className="mu-button-glow">
                     <Users className="h-4 w-4 mr-2" />
                     Gerenciar
                   </Button>
@@ -68,7 +86,7 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   variant="outline"
                   size="sm"
-                  className="flex items-center space-x-2"
+                  className="flex items-center space-x-2 mu-button-glow"
                 >
                   <User className="h-4 w-4" />
                   <span>{user.name}</span>
@@ -78,20 +96,20 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
                 {isDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-20">
+                    <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border-border border mu-card-glow z-20">
                       <button
                         onClick={() => {
                           setIsDropdownOpen(false)
                           onOpenProfile()
                         }}
-                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground rounded-t-lg"
                       >
                         <Settings className="h-4 w-4 mr-2" />
                         Editar Perfil
                       </button>
                       <button
                         onClick={handleLogout}
-                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        className="flex items-center w-full px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
                       >
                         <LogOut className="h-4 w-4 mr-2" />
                         Sair
@@ -102,7 +120,7 @@ export function Header({ onOpenCreateQueue, onOpenUserManagement, onOpenProfile 
               </div>
             </>
           ) : (
-            <Button onClick={openLogin} variant="outline" size="sm">
+            <Button onClick={openLogin} variant="outline" size="sm" className="mu-button-glow">
               <LogIn className="h-4 w-4 mr-2" />
               Entrar
             </Button>

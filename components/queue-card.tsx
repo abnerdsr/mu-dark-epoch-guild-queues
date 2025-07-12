@@ -127,7 +127,7 @@ export function QueueCard({ queue }: QueueCardProps) {
 
   return (
     <>
-      <Card className="h-fit">
+      <Card className="h-fit mu-card-glow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           {isEditingTitle ? (
             <div className="flex-1 flex items-center space-x-2">
@@ -144,7 +144,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                 }}
                 autoFocus
               />
-              <Button onClick={handleUpdateTitle} size="sm" disabled={loading}>
+              <Button onClick={handleUpdateTitle} size="sm" disabled={loading} className="mu-button-glow">
                 {loading ? "..." : "✓"}
               </Button>
               <Button
@@ -154,6 +154,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                 }}
                 variant="outline"
                 size="sm"
+                className="mu-button-glow"
               >
                 ✕
               </Button>
@@ -164,20 +165,20 @@ export function QueueCard({ queue }: QueueCardProps) {
 
           {user?.role === "master" && (
             <div className="relative">
-              <Button variant="ghost" size="sm" onClick={() => setShowMenu(!showMenu)} className="h-8 w-8 p-0">
+              <Button variant="ghost" size="sm" onClick={() => setShowMenu(!showMenu)} className="h-8 w-8 p-0 mu-button-glow">
                 <MoreVertical className="h-4 w-4" />
               </Button>
 
               {showMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-20">
+                  <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border-border border mu-card-glow z-20">
                     <button
                       onClick={() => {
                         setIsEditingTitle(true)
                         setShowMenu(false)
                       }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                      className="flex items-center w-full px-4 py-2 text-sm text-primary hover:bg-accent hover:text-accent-foreground rounded-t-lg"
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       Editar Nome
@@ -187,7 +188,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                         setShowDeleteConfirm(true)
                         setShowMenu(false)
                       }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                      className="flex items-center w-full px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Excluir Fila
@@ -207,7 +208,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                 <Button
                   onClick={() => setIsAddingPerson(true)}
                   variant="outline"
-                  className="w-full"
+                  className="w-full mu-button-glow"
                   disabled={availableUsers.length === 0}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
@@ -234,11 +235,11 @@ export function QueueCard({ queue }: QueueCardProps) {
                         setSelectedUserId("")
                       }}
                       variant="outline"
-                      className="flex-1 bg-transparent"
+                      className="flex-1 mu-button-glow"
                     >
                       Cancelar
                     </Button>
-                    <Button onClick={handleAddPerson} disabled={!selectedUserId || loading} className="flex-1">
+                    <Button onClick={handleAddPerson} disabled={!selectedUserId || loading} className="flex-1 mu-button-glow">
                       {loading ? "Adicionando..." : "Adicionar"}
                     </Button>
                   </div>
@@ -249,7 +250,7 @@ export function QueueCard({ queue }: QueueCardProps) {
 
           {/* Botão para usuário comum e admin */}
           {canUserJoin && (
-            <Button onClick={handleRequestJoin} disabled={loading} className="w-full">
+            <Button onClick={handleRequestJoin} disabled={loading} className="w-full mu-button-glow">
               <Plus className="h-4 w-4 mr-2" />
               {loading ? "Solicitando..." : user?.role === "master" ? "Entrar na Fila" : "Solicitar Entrada"}
             </Button>
@@ -258,27 +259,27 @@ export function QueueCard({ queue }: QueueCardProps) {
           {/* Abas - só aparecem para admin */}
           {user?.role === "master" ? (
             <Tabs defaultValue="approved" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="approved">Na Fila ({approvedItems.length})</TabsTrigger>
-                <TabsTrigger value="waiting">Aguardando ({waitingItems.length})</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="approved" className="mu-button-glow">Na Fila ({approvedItems.length})</TabsTrigger>
+                <TabsTrigger value="waiting" className="mu-button-glow">Aguardando ({waitingItems.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="approved" className="space-y-2">
                 {approvedItems.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">Fila vazia</p>
+                  <p className="text-center text-muted-foreground py-4">Fila vazia</p>
                 ) : (
                   approvedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-secondary border border-mu-electric rounded-lg mu-electric-glow"
                     >
                       <div className="flex items-center space-x-3">
-                        <Badge variant="outline" className="bg-green-100 text-green-800">
+                        <Badge variant="outline" className="bg-mu-electric text-mu-dark mu-text-glow">
                           {item.position}º
                         </Badge>
                         <span className="font-medium">{item.name}</span>
                         {users.find((u) => u.id === item.requestedBy)?.role === "master" && (
-                          <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                          <Crown className="h-4 w-4 text-mu-gold" />
                         )}
                       </div>
                       <div className="flex space-x-1">
@@ -286,7 +287,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                           size="sm"
                           variant="outline"
                           onClick={() => handleEditPosition(item.id, item.position)}
-                          className="h-8 w-8 p-0"
+                          className="h-8 w-8 p-0 mu-button-glow"
                           title="Editar posição"
                         >
                           <ArrowUpDown className="h-3 w-3" />
@@ -296,7 +297,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                             size="sm"
                             variant="outline"
                             onClick={() => moveToEnd(queue.id, item.id)}
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 mu-button-glow"
                             title="Pegou o item (mover para o fim)"
                           >
                             <RotateCcw className="h-3 w-3" />
@@ -306,7 +307,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                           size="sm"
                           variant="outline"
                           onClick={() => removePersonFromQueue(queue.id, item.id)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive mu-button-glow hover:bg-destructive/10"
                           title="Remover da fila"
                         >
                           <X className="h-3 w-3" />
@@ -319,20 +320,20 @@ export function QueueCard({ queue }: QueueCardProps) {
 
               <TabsContent value="waiting" className="space-y-2">
                 {waitingItems.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">Nenhuma solicitação pendente</p>
+                  <p className="text-center text-muted-foreground py-4">Nenhuma solicitação pendente</p>
                 ) : (
                   waitingItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-muted border border-mu-bronze rounded-lg mu-electric-glow"
                     >
                       <div className="flex items-center space-x-3">
-                        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                        <Badge variant="outline" className="bg-mu-bronze text-mu-dark">
                           Aguardando
                         </Badge>
                         <span className="font-medium">{item.name}</span>
                         {users.find((u) => u.id === item.requestedBy)?.role === "master" && (
-                          <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                          <Crown className="h-4 w-4 text-mu-gold" />
                         )}
                       </div>
                       <div className="flex space-x-1">
@@ -340,7 +341,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                           size="sm"
                           variant="outline"
                           onClick={() => approveRequest(queue.id, item.id)}
-                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                          className="h-8 w-8 p-0 text-green-400 hover:text-green-300 mu-button-glow hover:bg-green-400/10"
                           title="Aprovar solicitação"
                         >
                           <Check className="h-3 w-3" />
@@ -349,7 +350,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                           size="sm"
                           variant="outline"
                           onClick={() => removePersonFromQueue(queue.id, item.id)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive mu-button-glow hover:bg-destructive/10"
                           title="Rejeitar solicitação"
                         >
                           <X className="h-3 w-3" />
@@ -363,19 +364,19 @@ export function QueueCard({ queue }: QueueCardProps) {
           ) : (
             // Visualização simples para usuários comuns
             <div className="space-y-2">
-              <h3 className="font-medium text-sm text-gray-700">Pessoas na Fila</h3>
+              <h3 className="font-medium text-sm text-foreground mu-text-glow">Pessoas na Fila</h3>
               {approvedItems.length === 0 ? (
-                <p className="text-center text-gray-500 py-4">Fila vazia</p>
+                <p className="text-center text-muted-foreground py-4">Fila vazia</p>
               ) : (
                 approvedItems.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
-                    <Badge variant="outline">{item.position}º</Badge>
+                  <div key={item.id} className="flex items-center space-x-3 p-2 bg-secondary rounded-lg border border-mu-electric mu-electric-glow">
+                    <Badge variant="outline" className="bg-mu-electric text-mu-dark">{item.position}º</Badge>
                     <span className="font-medium">{item.name}</span>
                     {users.find((u) => u.id === item.requestedBy)?.role === "master" && (
-                      <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                      <Crown className="h-4 w-4 text-mu-gold" />
                     )}
                     {item.requestedBy === user?.id && (
-                      <Badge variant="secondary" className="ml-auto">
+                      <Badge variant="secondary" className="ml-auto bg-mu-gold text-mu-dark">
                         Você
                       </Badge>
                     )}
@@ -406,7 +407,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                 onChange={(e) => setNewPosition(e.target.value)}
                 placeholder={`Entre 1 e ${approvedItems.length}`}
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Posição atual: {editingPosition?.currentPosition}º | Total de pessoas: {approvedItems.length}
               </p>
             </div>
@@ -416,11 +417,11 @@ export function QueueCard({ queue }: QueueCardProps) {
                 type="button"
                 variant="outline"
                 onClick={handleCancelEditPosition}
-                className="flex-1 bg-transparent"
+                className="flex-1 mu-button-glow"
               >
                 Cancelar
               </Button>
-              <Button onClick={handleSavePosition} disabled={loading} className="flex-1">
+              <Button onClick={handleSavePosition} disabled={loading} className="flex-1 mu-button-glow">
                 {loading ? "Salvando..." : "Salvar"}
               </Button>
             </div>
@@ -436,18 +437,18 @@ export function QueueCard({ queue }: QueueCardProps) {
           </DialogHeader>
 
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-foreground">
               Tem certeza que deseja excluir a fila <strong>"{queue.title}"</strong>?
             </p>
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-destructive">
               Esta ação não pode ser desfeita. Todas as pessoas na fila serão removidas.
             </p>
 
             <div className="flex space-x-2">
-              <Button type="button" variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1">
+              <Button type="button" variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1 mu-button-glow">
                 Cancelar
               </Button>
-              <Button onClick={handleDeleteQueue} disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700">
+              <Button onClick={handleDeleteQueue} disabled={loading} className="flex-1 bg-destructive hover:bg-destructive/80 text-destructive-foreground">
                 {loading ? "Excluindo..." : "Excluir Fila"}
               </Button>
             </div>
