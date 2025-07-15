@@ -10,12 +10,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/auth-provider"
+import { QueueEditModal } from "@/components/queue-edit-modal"
 import { MoreVertical, Plus, UserPlus, Check, X, RotateCcw, Trash2, ArrowUpDown, Edit, Crown } from "lucide-react"
 
 interface QueueCardProps {
   queue: {
     id: string
     title: string
+    item_name: string
+    image_url?: string
     items: Array<{
       id: string
       name: string
@@ -37,7 +40,7 @@ export function QueueCard({ queue }: QueueCardProps) {
     approveRequest,
     requestToJoinQueue,
     deleteQueue,
-    updateQueueTitle,
+
     canJoinQueue,
   } = useAuth()
 
@@ -47,8 +50,7 @@ export function QueueCard({ queue }: QueueCardProps) {
   const [loading, setLoading] = useState(false)
   const [editingPosition, setEditingPosition] = useState<{ itemId: string; currentPosition: number } | null>(null)
   const [newPosition, setNewPosition] = useState("")
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [newTitle, setNewTitle] = useState(queue.title)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Separar itens por status
@@ -84,18 +86,7 @@ export function QueueCard({ queue }: QueueCardProps) {
     setShowMenu(false)
   }
 
-  const handleUpdateTitle = async () => {
-    if (!newTitle.trim() || newTitle.trim() === queue.title) {
-      setIsEditingTitle(false)
-      setNewTitle(queue.title)
-      return
-    }
 
-    setLoading(true)
-    await updateQueueTitle(queue.id, newTitle.trim())
-    setIsEditingTitle(false)
-    setLoading(false)
-  }
 
   const handleEditPosition = (itemId: string, currentPosition: number) => {
     setEditingPosition({ itemId, currentPosition })
@@ -129,39 +120,23 @@ export function QueueCard({ queue }: QueueCardProps) {
     <>
       <Card className="h-fit mu-card-glow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          {isEditingTitle ? (
-            <div className="flex-1 flex items-center space-x-2">
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="text-lg font-semibold"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleUpdateTitle()
-                  if (e.key === "Escape") {
-                    setIsEditingTitle(false)
-                    setNewTitle(queue.title)
-                  }
-                }}
-                autoFocus
+          <div className="flex items-center space-x-3">
+            {queue.image_url ? (
+              <img
+                src={queue.image_url}
+                alt={queue.item_name}
+                className="w-12 h-12 rounded-lg object-cover border border-mu-electric/30"
               />
-              <Button onClick={handleUpdateTitle} size="sm" disabled={loading} className="mu-button-glow">
-                {loading ? "..." : "✓"}
-              </Button>
-              <Button
-                onClick={() => {
-                  setIsEditingTitle(false)
-                  setNewTitle(queue.title)
-                }}
-                variant="outline"
-                size="sm"
-                className="mu-button-glow"
-              >
-                ✕
-              </Button>
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-mu-electric/10 border border-mu-electric/30 flex items-center justify-center">
+                <span className="text-mu-electric text-xs">No Image</span>
+              </div>
+            )}
+            <div>
+              <CardTitle className="text-lg text-mu-electric">{queue.item_name}</CardTitle>
+              <p className="text-sm text-muted-foreground">{queue.title}</p>
             </div>
-          ) : (
-            <CardTitle className="text-lg">{queue.title}</CardTitle>
-          )}
+          </div>
 
           {user?.role === "master" && (
             <div className="relative">
@@ -175,13 +150,13 @@ export function QueueCard({ queue }: QueueCardProps) {
                   <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border-border border mu-card-glow z-20">
                     <button
                       onClick={() => {
-                        setIsEditingTitle(true)
+                        setIsEditModalOpen(true)
                         setShowMenu(false)
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-primary hover:bg-accent hover:text-accent-foreground rounded-t-lg"
                     >
                       <Edit className="h-4 w-4 mr-2" />
-                      Editar Nome
+                      Edit Details
                     </button>
                     <button
                       onClick={() => {
@@ -191,7 +166,7 @@ export function QueueCard({ queue }: QueueCardProps) {
                       className="flex items-center w-full px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir Fila
+                      Delete Queue
                     </button>
                   </div>
                 </>
@@ -455,6 +430,13 @@ export function QueueCard({ queue }: QueueCardProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Queue Edit Modal */}
+      <QueueEditModal
+        queue={queue}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+      />
     </>
   )
 }
