@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Check, SkipForward, X, User, Clock } from "lucide-react"
 
 interface NameActionCardProps {
@@ -33,8 +32,6 @@ export function NameActionCard({
     onDecline,
     isProcessing
 }: NameActionCardProps) {
-    const progressPercentage = ((currentIndex + 1) / totalCount) * 100
-
     return (
         <Card className="mx-auto max-w-md mu-electric-glow-strong bg-card/90 backdrop-blur-sm">
             <CardHeader className="text-center pb-3">
@@ -66,15 +63,6 @@ export function NameActionCard({
             </CardHeader>
 
             <CardContent className="space-y-6">
-                {/* Progress Bar */}
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Progress</span>
-                        <span>{Math.round(progressPercentage)}%</span>
-                    </div>
-                    <Progress value={progressPercentage} className="h-2" />
-                </div>
-
                 {/* Action Buttons */}
                 <div className="space-y-3">
                     <Button
