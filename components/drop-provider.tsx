@@ -36,12 +36,14 @@ interface ActiveDrop {
     totalCount: number
     currentItems: Array<{
         id: string
+        originalId: string
         name: string
         position: number
         requestedBy: string
     }>
     currentItem: {
         id: string
+        originalId: string
         name: string
         position: number
         requestedBy: string
@@ -86,7 +88,7 @@ interface DropProviderProps {
 }
 
 export function DropProvider({ children }: DropProviderProps) {
-    const { user, queues, moveToEnd } = useAuth()
+    const { user, queues, moveToEnd, refreshQueues } = useAuth()
     const [isProcessing, setIsProcessing] = useState(false)
     const [isLoadingData, setIsLoadingData] = useState(true)
     const [activeDrops, setActiveDrops] = useState<ActiveDrop[]>([])
@@ -187,14 +189,23 @@ export function DropProvider({ children }: DropProviderProps) {
 
                 if (approvedItems.length === 0) continue
 
-                // Filter items to only include participants, then take required count
+                // Filter items to only include participants
                 const participantItems = approvedItems.filter(item => participants.includes(item.name))
-                const itemsToProcess = participantItems.slice(0, count)
 
-                // If we don't have enough participants, we'll need to pull more during processing
-                if (itemsToProcess.length < count) {
-                    console.warn(`Not enough participants for ${queue.item_name}: need ${count}, have ${itemsToProcess.length}`)
+                // If no participants, skip this queue
+                if (participantItems.length === 0) {
+                    console.warn(`No participants found for ${queue.item_name}`)
+                    continue
                 }
+
+                // Create items to process by looping through participants if needed
+                const itemsToProcess = []
+                for (let i = 0; i < count; i++) {
+                    const participantIndex = i % participantItems.length
+                    itemsToProcess.push(participantItems[participantIndex])
+                }
+
+
 
                 // Create drop event in database
                 const { data: dropEvent, error } = await supabase
@@ -222,14 +233,16 @@ export function DropProvider({ children }: DropProviderProps) {
                     })),
                     processedCount: 0,
                     totalCount: count,
-                    currentItems: itemsToProcess.map(item => ({
-                        id: item.id,
+                    currentItems: itemsToProcess.map((item, index) => ({
+                        id: `${item.id}-drop-${index}`, // Create unique ID for each drop instance
+                        originalId: item.id, // Keep original ID for database operations
                         name: item.name,
                         position: item.position,
                         requestedBy: item.requestedBy
                     })),
                     currentItem: itemsToProcess[0] ? {
-                        id: itemsToProcess[0].id,
+                        id: `${itemsToProcess[0].id}-drop-0`,
+                        originalId: itemsToProcess[0].id,
                         name: itemsToProcess[0].name,
                         position: itemsToProcess[0].position,
                         requestedBy: itemsToProcess[0].requestedBy
@@ -281,7 +294,8 @@ export function DropProvider({ children }: DropProviderProps) {
                         const itemIndex = drop.currentItems.findIndex(i => i.id === item.id)
                         if (itemIndex !== -1) {
                             drop.currentItems[itemIndex] = {
-                                id: nextParticipant.id,
+                                id: `${nextParticipant.id}-drop-${itemIndex}`, // Create unique ID for each drop instance
+                                originalId: nextParticipant.id, // Keep original ID for database operations
                                 name: nextParticipant.name,
                                 position: nextParticipant.position,
                                 requestedBy: nextParticipant.requestedBy
@@ -299,27 +313,57 @@ export function DropProvider({ children }: DropProviderProps) {
     }
 
     // Process next item in drop sequence
-    const processNextItem = async (queueId: string, pullReplacement: boolean, itemId: string) => {
+    const processNextItem = async (queueId: string, pullReplacement: boolean, itemId: string, completeDrop: boolean = true) => {
         setActiveDrops(prev => {
             const updated = prev.map(drop => {
                 if (drop.queueId === queueId) {
                     // Remove the processed item from currentItems
                     const updatedCurrentItems = drop.currentItems.filter(item => item.id !== itemId)
-                    const processed = drop.processedCount + 1
 
-                    // If we need a replacement and have more items in remaining, pull next participant
+                    // Only increment processedCount if we're actually completing a drop (accept/decline)
+                    // For skips, we don't complete the drop, just cycle to next participant
+                    const processed = completeDrop ? drop.processedCount + 1 : drop.processedCount
+
+                    // Check if we need to pull next participant
                     let newCurrentItems = [...updatedCurrentItems]
-                    if (pullReplacement && drop.remainingItems.length > processed) {
-                        // Find next participant in remaining items
-                        const nextParticipant = drop.remainingItems
-                            .filter(item =>
-                                participantList.includes(item.name) &&
-                                !newCurrentItems.some(currentItem => currentItem.id === item.id)
-                            )
-                            .sort((a, b) => a.position - b.position)[0]
 
-                        if (nextParticipant) {
-                            newCurrentItems.push(nextParticipant)
+                    // Only add replacement if we're skipping (cycling to next participant for same drop slot)
+                    // For accepts/declines, we don't add replacement - just move to next drop slot
+                    const needsReplacement = pullReplacement
+
+                    if (needsReplacement) {
+                        // Get current queue state to find participant queue items
+                        const currentQueue = queues.find(q => q.id === queueId)
+                        if (currentQueue && participantList.length > 0) {
+                            // Find the current participant name being replaced
+                            const currentParticipantName = drop.currentItems.find(item => item.id === itemId)?.name
+
+                            // Find current participant's index in the participant list
+                            const currentParticipantIndex = participantList.indexOf(currentParticipantName || "")
+
+                            // Get next participant in the cycle (move to next participant in participant list)
+                            const nextParticipantIndex = (currentParticipantIndex + 1) % participantList.length
+                            const nextParticipantName = participantList[nextParticipantIndex]
+
+                            // Find this participant in the current queue state
+                            const nextParticipant = currentQueue.items.find(item =>
+                                item.status === "approved" &&
+                                item.name === nextParticipantName
+                            )
+
+                            if (nextParticipant) {
+                                // Extract drop slot number to maintain slot tracking
+                                const dropSlotMatch = itemId.match(/-drop-(\d+)$/)
+                                const dropSlot = dropSlotMatch ? parseInt(dropSlotMatch[1]) : 0
+
+                                newCurrentItems.push({
+                                    id: `${nextParticipant.id}-drop-${dropSlot}`, // Maintain the same drop slot number
+                                    originalId: nextParticipant.id, // Keep original ID for database operations
+                                    name: nextParticipant.name,
+                                    position: nextParticipant.position,
+                                    requestedBy: nextParticipant.requestedBy
+                                })
+                            }
                         }
                     }
 
@@ -357,6 +401,12 @@ export function DropProvider({ children }: DropProviderProps) {
         const drop = activeDrops.find(d => d.queueId === queueId)
         if (!drop) return
 
+        // Find the item to get the original ID
+        const currentItem = drop.currentItems.find(item => item.id === itemId)
+        if (!currentItem) return
+
+        const originalItemId = currentItem.originalId
+
         setIsProcessing(true)
         try {
             // Add to picked up list in database
@@ -364,7 +414,7 @@ export function DropProvider({ children }: DropProviderProps) {
                 .from("drop_participants")
                 .insert([{
                     drop_event_id: drop.dropEventId,
-                    queue_item_id: itemId,
+                    queue_item_id: originalItemId,
                     name,
                     action: "accept"
                 }])
@@ -374,7 +424,10 @@ export function DropProvider({ children }: DropProviderProps) {
             if (error) throw error
 
             // Move to end of queue
-            await moveToEnd(queueId, itemId)
+            await moveToEnd(queueId, originalItemId)
+
+            // Refresh queue data to get updated positions
+            await refreshQueues()
 
             // Update local state
             const queue = queues.find(q => q.id === queueId)
@@ -385,7 +438,7 @@ export function DropProvider({ children }: DropProviderProps) {
             }])
 
             // Remove this item from processing (no replacement for accept)
-            await processNextItem(queueId, false, itemId)
+            await processNextItem(queueId, false, itemId, true)
 
         } catch (error) {
             console.error("Error accepting name:", error)
@@ -399,6 +452,12 @@ export function DropProvider({ children }: DropProviderProps) {
         const drop = activeDrops.find(d => d.queueId === queueId)
         if (!drop) return
 
+        // Find the item to get the original ID
+        const currentItem = drop.currentItems.find(item => item.id === itemId)
+        if (!currentItem) return
+
+        const originalItemId = currentItem.originalId
+
         setIsProcessing(true)
         try {
             // Add to missed list in database
@@ -406,7 +465,7 @@ export function DropProvider({ children }: DropProviderProps) {
                 .from("drop_participants")
                 .insert([{
                     drop_event_id: drop.dropEventId,
-                    queue_item_id: itemId,
+                    queue_item_id: originalItemId,
                     name,
                     action: "skip"
                 }])
@@ -416,7 +475,10 @@ export function DropProvider({ children }: DropProviderProps) {
             if (error) throw error
 
             // Move to end of queue
-            await moveToEnd(queueId, itemId)
+            await moveToEnd(queueId, originalItemId)
+
+            // Refresh queue data to get updated positions
+            await refreshQueues()
 
             // Update local state
             const queue = queues.find(q => q.id === queueId)
@@ -426,8 +488,8 @@ export function DropProvider({ children }: DropProviderProps) {
                 imageUrl: queue?.image_url
             }])
 
-            // Remove this item and pull replacement
-            await processNextItem(queueId, true, itemId)
+            // Remove this item and pull replacement (skip - don't complete drop)
+            await processNextItem(queueId, true, itemId, false)
 
         } catch (error) {
             console.error("Error skipping name:", error)
@@ -441,6 +503,12 @@ export function DropProvider({ children }: DropProviderProps) {
         const drop = activeDrops.find(d => d.queueId === queueId)
         if (!drop) return
 
+        // Find the item to get the original ID
+        const currentItem = drop.currentItems.find(item => item.id === itemId)
+        if (!currentItem) return
+
+        const originalItemId = currentItem.originalId
+
         setIsProcessing(true)
         try {
             // Add to missed list in database
@@ -448,7 +516,7 @@ export function DropProvider({ children }: DropProviderProps) {
                 .from("drop_participants")
                 .insert([{
                     drop_event_id: drop.dropEventId,
-                    queue_item_id: itemId,
+                    queue_item_id: originalItemId,
                     name,
                     action: "decline"
                 }])
@@ -458,7 +526,10 @@ export function DropProvider({ children }: DropProviderProps) {
             if (error) throw error
 
             // Move to end of queue
-            await moveToEnd(queueId, itemId)
+            await moveToEnd(queueId, originalItemId)
+
+            // Refresh queue data to get updated positions
+            await refreshQueues()
 
             // Update local state
             const queue = queues.find(q => q.id === queueId)
@@ -469,7 +540,7 @@ export function DropProvider({ children }: DropProviderProps) {
             }])
 
             // Remove this item (no replacement for decline)
-            await processNextItem(queueId, false, itemId)
+            await processNextItem(queueId, false, itemId, true)
 
         } catch (error) {
             console.error("Error declining name:", error)

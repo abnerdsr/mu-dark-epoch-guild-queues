@@ -35,7 +35,7 @@ export function DropInputPanel({ queues, onStartDrops, isProcessing }: DropInput
     const getDropCount = (queueId: string) => dropCounts[queueId] || 0
 
     const updateDropCount = (queueId: string, newCount: number) => {
-        const clampedCount = Math.max(0, Math.min(5, newCount))
+        const clampedCount = Math.max(0, newCount)
         setDropCounts(prev => ({
             ...prev,
             [queueId]: clampedCount
@@ -78,7 +78,6 @@ export function DropInputPanel({ queues, onStartDrops, isProcessing }: DropInput
                 {queues.map((queue) => {
                     const approvedCount = queue.items.filter(item => item.status === "approved").length
                     const dropCount = getDropCount(queue.id)
-                    const maxDrops = Math.min(5, approvedCount)
 
                     return (
                         <Card key={queue.id} className="mu-border-glow bg-card/50 backdrop-blur-sm">
@@ -125,15 +124,11 @@ export function DropInputPanel({ queues, onStartDrops, isProcessing }: DropInput
                                         variant="outline"
                                         size="sm"
                                         onClick={() => updateDropCount(queue.id, dropCount + 1)}
-                                        disabled={dropCount >= maxDrops || isProcessing}
+                                        disabled={approvedCount === 0 || isProcessing}
                                         className="h-8 w-8 p-0 border-mu-electric/50 hover:border-mu-electric hover:bg-mu-electric/10"
                                     >
                                         <Plus className="h-4 w-4" />
                                     </Button>
-                                </div>
-
-                                <div className="text-center text-sm text-muted-foreground">
-                                    Max: {maxDrops} drops
                                 </div>
 
                                 {dropCount > 0 && (
