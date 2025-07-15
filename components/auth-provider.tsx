@@ -14,6 +14,8 @@ interface AuthUser {
 interface QueueWithItems {
   id: string
   title: string
+  item_name: string
+  image_url?: string
   items: Array<{
     id: string
     name: string
@@ -43,6 +45,7 @@ interface AuthContextType {
   createQueue: (title: string) => Promise<void>
   deleteQueue: (queueId: string) => Promise<void>
   updateQueueTitle: (queueId: string, newTitle: string) => Promise<void>
+  updateQueueDetails: (queueId: string, details: { title?: string; item_name?: string; image_url?: string }) => Promise<void>
   refreshQueues: () => Promise<void>
   refreshUsers: () => Promise<void>
   updateProfile: (name: string, password: string) => Promise<boolean>
@@ -104,6 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const queuesWithItems: QueueWithItems[] = (queuesData || []).map((queue) => ({
         id: queue.id,
         title: queue.title,
+        item_name: queue.item_name || 'Queue Item',
+        image_url: queue.image_url,
         items: (itemsData || [])
           .filter((item) => item.queue_id === queue.id)
           .map((item) => ({
@@ -524,6 +529,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateQueueDetails = async (queueId: string, details: { title?: string; item_name?: string; image_url?: string }) => {
+    if (user?.role !== "master") return
+
+    try {
+      const updateData: any = {}
+      if (details.title !== undefined) updateData.title = details.title
+      if (details.item_name !== undefined) updateData.item_name = details.item_name
+      if (details.image_url !== undefined) updateData.image_url = details.image_url
+
+      const { error } = await supabase.from("queues").update(updateData).eq("id", queueId)
+
+      if (error) throw error
+      await refreshQueues()
+    } catch (error) {
+      console.error("Erro ao atualizar detalhes da fila:", error)
+      throw error
+    }
+  }
+
   const updateProfile = async (name: string, password: string): Promise<boolean> => {
     if (!user) return false
 
@@ -634,6 +658,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createQueue,
         deleteQueue,
         updateQueueTitle,
+        updateQueueDetails,
         refreshQueues,
         refreshUsers,
         updateProfile,
