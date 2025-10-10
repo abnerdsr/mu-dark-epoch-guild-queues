@@ -32,7 +32,7 @@ export default function Home() {
             onOpenProfile={() => setIsProfileModalOpen(true)}
           />
           <main className="container mx-auto px-4 py-8 relative z-10">
-            <DropManagementPanel />
+            {/* <DropManagementPanel /> */}
             <QueueGrid />
           </main>
 
