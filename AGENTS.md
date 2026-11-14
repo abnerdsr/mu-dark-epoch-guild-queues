@@ -26,7 +26,7 @@ gerados que não são usados. O deploy é feito na Vercel.
 
 | Camada        | Tecnologia                                                    |
 | ------------- | ------------------------------------------------------------- |
-| Framework     | Next.js 15 (App Router) + React 19                            |
+| Framework     | Next.js 15.5 (App Router) + React 19.1                        |
 | Linguagem     | TypeScript (`strict`), módulos ESM (`"type": "module"`)       |
 | UI            | Tailwind CSS 3, shadcn/ui (Radix), lucide-react, next-themes  |
 | Backend       | Route Handlers do Next.js (`app/api`)                         |
@@ -194,7 +194,12 @@ A branch `mult-guild` tem migrations antigas de multi-guild (tabela `guilds` e
   Não edite `styles/globals.css` — ele não é usado.
 - Para adicionar um componente shadcn: `pnpm dlx shadcn@latest add <nome>`
   (config em `components.json`).
-- Use pnpm; ao adicionar dependência, fixe uma versão (evite `"latest"`).
+- Use pnpm; ao adicionar dependência, fixe uma versão (nunca `"latest"`) e
+  prefira versões publicadas há pelo menos 2 semanas.
+- Vulnerabilidades: rode `pnpm audit`. Correções em dependências indiretas
+  ficam em `pnpm.overrides` no `package.json`, sempre dentro da mesma major.
+  Ao atualizar o pacote que puxa a dependência, verifique se o override ainda
+  é necessário e remova-o se não for.
 - Antes de terminar uma mudança, rode `npx tsc --noEmit` e `pnpm build`.
   Hoje existem 15 erros de tipo já conhecidos, todos em
   `components/ui/{calendar,chart,resizable}.tsx` (não usados); não introduza
@@ -211,13 +216,17 @@ A branch `mult-guild` tem migrations antigas de multi-guild (tabela `guilds` e
 ## Problemas conhecidos (backlog de correções)
 
 Resolvidos na branch de segurança: autenticação no cliente, banco aberto para a
-anon key, hash de senha fraco, senha padrão sem troca obrigatória e upload que
-confiava no `userId` do cliente.
+anon key, hash de senha fraco, senha padrão sem troca obrigatória, upload que
+confiava no `userId` do cliente, dependências com CVEs (Next 15.2 → 15.5.28,
+React 19.1.10, zod 4) e dependências com versão `"latest"`.
 
 ### Segurança
 
 1. Sem limite de tentativas de login (brute force). Considerar rate limit.
-2. Dependências desatualizadas, com CVEs (próximo passo).
+2. `pnpm audit` ainda aponta 4 avisos **moderados** em `glob`/`minimatch`,
+   puxados por `tailwindcss` (sucrase) e `node-pg-migrate`. São ferramentas de
+   build/CLI (não rodam no site em produção) e a correção só existe em majors
+   novas dessas libs; resolve-se ao migrar para Tailwind 4 / node-pg-migrate 9.
 
 ### Lógica de filas
 
@@ -238,9 +247,9 @@ confiava no `userId` do cliente.
 
 8. `next.config.mjs` ignora erros de TypeScript e ESLint no build.
 9. ESLint não está instalado, então `pnpm lint` não funciona.
-10. Muitas dependências com versão `"latest"` → builds não reproduzíveis;
-    já quebraram os tipos de `calendar`, `chart` e `resizable` (react-day-picker
-    v9, recharts v3, react-resizable-panels v4).
+10. Os tipos de `calendar`, `chart` e `resizable` estão quebrados (versões
+    novas de react-day-picker, recharts e react-resizable-panels). Os
+    componentes não são usados; dá para removê-los junto com as dependências.
 11. Script `migrate:reset` aponta para `database/migrationss` (erro de digitação).
 12. As 5 migrations originais têm `down` vazio (rollback não funciona).
 13. Código morto/duplicado: `styles/globals.css`, `hooks/*` duplicando

@@ -1,21 +1,21 @@
 import { z } from "zod";
 
 export const usernameSchema = z
-  .string({ required_error: "Username é obrigatório" })
+  .string({ error: "Username é obrigatório" })
   .trim()
   .min(1, "Username é obrigatório")
   .max(50, "Username muito longo (máx. 50)")
   .refine((value) => !/\s/.test(value), "Username não pode conter espaços");
 
 export const nameSchema = z
-  .string({ required_error: "Nome é obrigatório" })
+  .string({ error: "Nome é obrigatório" })
   .trim()
   .min(1, "Nome é obrigatório")
   .max(255, "Nome muito longo");
 
 /** Regras para senhas NOVAS (login aceita qualquer senha antiga). */
 export const newPasswordSchema = z
-  .string({ required_error: "Senha é obrigatória" })
+  .string({ error: "Senha é obrigatória" })
   .min(6, "A senha precisa ter pelo menos 6 caracteres")
   .max(200, "Senha muito longa");
 
