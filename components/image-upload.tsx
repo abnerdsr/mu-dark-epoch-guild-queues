@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { supabase } from "@/lib/supabase"
 import { Upload, X, Image as ImageIcon, Clipboard } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 
@@ -55,7 +54,6 @@ export function ImageUpload({ currentImageUrl, onImageChange, className = "" }: 
             // Create form data
             const formData = new FormData()
             formData.append('file', resizedBlob, 'image.jpg')
-            formData.append('userId', user.id)
 
             // Upload via API
             const response = await fetch('/api/upload-image', {
@@ -87,7 +85,7 @@ export function ImageUpload({ currentImageUrl, onImageChange, className = "" }: 
         if (!user || user.role !== "master") return
 
         try {
-            const response = await fetch(`/api/upload-image?url=${encodeURIComponent(imageUrl)}&userId=${user.id}`, {
+            const response = await fetch(`/api/upload-image?url=${encodeURIComponent(imageUrl)}`, {
                 method: 'DELETE',
             })
 

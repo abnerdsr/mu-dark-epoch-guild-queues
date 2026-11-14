@@ -132,7 +132,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                 {loading ? "Criando..." : "Criar Usuário"}
               </Button>
             </form>
-            <p className="text-xs text-muted-foreground mt-2">A senha padrão será o próprio username</p>
+            <p className="text-xs text-muted-foreground mt-2">A senha inicial será o próprio username; o usuário precisará trocá-la no primeiro login</p>
           </div>
 
           {/* Lista de Usuários */}

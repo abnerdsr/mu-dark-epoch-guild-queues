@@ -43,9 +43,9 @@ export function LoginModal() {
       return
     }
 
-    const success = await signup(signupData.name, signupData.username, signupData.password)
-    if (!success) {
-      setError("Erro ao criar conta. Username pode já estar em uso.")
+    const signupError = await signup(signupData.name, signupData.username, signupData.password)
+    if (signupError) {
+      setError(signupError)
     }
 
     setLoading(false)
