@@ -8,17 +8,19 @@ Guia para agentes de IA (e humanos) que trabalham neste repositório.
 loot de bosses de uma guild do jogo MU Dark Epoch. Cada fila representa um item
 (ex.: uma asa, uma joia) e mantém a ordem de quem é o próximo a receber.
 
+- Visitantes sem login podem ver as filas.
 - Usuários comuns (`role = "user"`) pedem para entrar numa fila; o pedido fica
   como `waiting` até um master aprovar.
 - Masters (`role = "master"`) criam/editam/apagam filas, aprovam pedidos,
   adicionam/removem pessoas, mudam posições, mandam o primeiro para o fim da
   fila e gerenciam usuários.
 - Existe um sistema de "drops" (`drop_events` / `drop_participants`) que hoje
-  está **desativado na UI** (`<DropManagementPanel />` comentado em
-  `app/page.tsx`), mas o `DropProvider` continua montado e consultando o banco.
+  está **desativado**: os componentes existem, mas não são montados em
+  `app/page.tsx` e ainda acessam o Supabase direto pelo navegador (precisam ser
+  migrados para `app/api` antes de voltar).
 
 O projeto foi iniciado no v0 (Vercel), por isso há muitos componentes shadcn/ui
-gerados que não são usados.
+gerados que não são usados. O deploy é feito na Vercel.
 
 ## Stack
 
@@ -27,16 +29,18 @@ gerados que não são usados.
 | Framework     | Next.js 15 (App Router) + React 19                            |
 | Linguagem     | TypeScript (`strict`), módulos ESM (`"type": "module"`)       |
 | UI            | Tailwind CSS 3, shadcn/ui (Radix), lucide-react, next-themes  |
-| Backend/dados | Supabase (Postgres + Storage) via `@supabase/supabase-js`     |
+| Backend       | Route Handlers do Next.js (`app/api`)                         |
+| Dados         | Supabase (Postgres + Storage) via service role, só no servidor |
+| Validação     | zod                                                           |
 | Migrations    | `node-pg-migrate` (arquivos JS em `database/migrations`)      |
 | Gerenciador   | **pnpm** (há `pnpm-lock.yaml`; não use npm/yarn)              |
 
 ## Comandos
 
 ```sh
-cp .example.env .env      # preencher com os dados do Supabase
+cp .example.env .env      # preencher com os dados do Supabase + SESSION_SECRET
 pnpm i                    # instalar dependências
-pnpm run migrate:up       # criar tabelas (usa DATABASE_URL)
+pnpm run migrate:up       # aplicar migrations (usa DATABASE_URL)
 pnpm run migrate:new nome # nova migration em database/migrations
 pnpm dev                  # servidor local em http://localhost:3000
 pnpm build                # build de produção
@@ -46,49 +50,81 @@ npx tsc --noEmit          # checagem de tipos (o build NÃO checa, ver abaixo)
 Não existem testes automatizados nem ESLint configurado (`pnpm lint` chama
 `next lint`, mas o ESLint não está instalado).
 
-Para rodar `pnpm build` sem um Supabase real, basta definir valores fictícios:
+Para rodar `pnpm build` sem um Supabase real, basta definir valores fictícios
+(as variáveis só são lidas quando uma rota é chamada):
 
 ```sh
 NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co \
-NEXT_PUBLIC_SUPABASE_ANON_KEY=dummy SUPABASE_SERVICE_ROLE_KEY=dummy pnpm build
+SUPABASE_SERVICE_ROLE_KEY=dummy SESSION_SECRET=dummy pnpm build
 ```
+
+### Rodando no container cloud do Claude Code
+
+- A rede só sai por um proxy HTTPS. O `fetch` do Node ignora `HTTPS_PROXY` por
+  padrão, então suba o servidor com
+  `NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 pnpm dev`.
+- Conexões Postgres diretas (`DATABASE_URL`, `pnpm run migrate:*`) **não**
+  funcionam daqui. Aplique SQL pelo conector do Supabase (MCP) ou peça para o
+  usuário rodar no SQL Editor do Supabase. Ao aplicar uma migration à mão,
+  registre-a também: `insert into pgmigrations (name, run_on) values ('<arquivo sem .js>', now());`.
+- `SESSION_SECRET` local pode ficar em `.env.local` (ignorado pelo git).
 
 ### Variáveis de ambiente (`.example.env`)
 
-| Variável                        | Uso                                                      |
-| ------------------------------- | -------------------------------------------------------- |
-| `DATABASE_URL`                  | Conexão Postgres usada pelo `node-pg-migrate`            |
-| `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase (exposta ao browser)             |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (exposta ao browser)                          |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Chave service role, **somente servidor** (upload imagem) |
-| `ENVIRONMENT`                   | Ambiente (`local`, …) — hoje não é lido pelo código      |
+| Variável                        | Uso                                                              |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`                  | Conexão Postgres usada pelo `node-pg-migrate`                    |
+| `NEXT_PUBLIC_SUPABASE_URL`      | URL do projeto Supabase (lida pelo servidor)                     |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Chave service role, **somente servidor** (todo acesso a dados)   |
+| `SESSION_SECRET`                | Segredo do cookie de sessão (≥ 32 caracteres; trocar desloga todos) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Não é mais usada pelo app (só pelo código de drops desativado)   |
+| `ENVIRONMENT`                   | Ambiente (`local`, …) — hoje não é lido pelo código              |
 
-Nunca commite `.env` (já está no `.gitignore` via `.env*`).
+Nunca commite `.env*` (já está no `.gitignore`).
 
 ## Estrutura
 
 ```
 app/
   layout.tsx                 # layout raiz, ThemeProvider (tema dark fixo)
-  page.tsx                   # única página; monta Auth/Drop providers e modais
+  page.tsx                   # única página; AuthProvider, modais, aviso de versão
   globals.css                # CSS global REAL (tema MU: cores mu-gold, mu-electric…)
-  api/upload-image/route.ts  # POST/DELETE de imagens no bucket "queue-images"
+  api/
+    auth/{login,signup,logout,me,password}/route.ts  # sessão e troca de senha
+    profile/route.ts                                 # editar o próprio perfil
+    queues/route.ts                                  # GET (público) / POST criar
+    queues/[queueId]/route.ts                        # PATCH editar / DELETE
+    queues/[queueId]/join/route.ts                   # usuário pede para entrar
+    queues/[queueId]/items/route.ts                  # master adiciona pessoa
+    queues/[queueId]/items/[itemId]/route.ts         # aprovar/mover/posição/remover
+    users/route.ts, users/[userId]/route.ts          # gerenciar usuários (master)
+    upload-image/route.ts                            # imagens no bucket "queue-images"
+    version/route.ts                                 # versão do build (aviso de deploy)
 components/
-  auth-provider.tsx          # Context com estado global + TODA a lógica de dados
-  drop-provider.tsx          # Context do sistema de drops (desativado na UI)
+  auth-provider.tsx          # Context com estado global; chama as rotas de app/api
+  force-password-change-modal.tsx  # troca obrigatória de senha no 1º login
+  update-notice.tsx          # aviso "nova versão disponível, recarregue"
   queue-grid.tsx, queue-card.tsx, queue-edit-modal.tsx, create-queue-modal.tsx
   header.tsx, login-modal.tsx, profile-modal.tsx, user-management-modal.tsx
   image-upload.tsx
   drop-*.tsx, participant-selection-panel.tsx, name-action-card.tsx,
-  picked-up-list.tsx, missed-list.tsx   # UI de drops (não usada hoje)
+  picked-up-list.tsx, missed-list.tsx   # drops (desativado, não montado)
   ui/                        # shadcn/ui gerado (maioria não usada)
 hooks/                       # use-toast / use-mobile (duplicados de components/ui)
 lib/
-  supabase.ts                # cliente Supabase (anon) + tipos das tabelas
-  supabase-admin.ts          # cliente service role (só no servidor!)
-  password-utils.ts          # hash de senha caseiro (ver Problemas conhecidos)
+  server/                    # SOMENTE servidor
+    session.ts               # cookie de sessão, requireUser(), getSessionUser()
+    password.ts              # scrypt + verificação do hash legado
+    queues.ts                # regras das filas (reordenação etc.)
+    http.ts                  # route(), readJson(), ApiError, check()
+    schemas.ts               # schemas zod compartilhados
+  supabase-admin.ts          # getSupabaseAdmin(): cliente service role (só servidor!)
+  api-client.ts              # api(): fetch tipado para as rotas (cliente)
+  types.ts                   # tipos compartilhados cliente/servidor
+  version.ts                 # APP_VERSION (definida em next.config.mjs)
+  supabase.ts                # cliente anon + tipos antigos (usado só pelos drops)
   utils.ts                   # cn()
-database/migrations/         # users, queues, queue_items, drop_events, drop_participants
+database/migrations/         # users, queues, queue_items, drop_*, must_change_password, lock
 styles/globals.css           # cópia antiga do shadcn, NÃO é importada
 ```
 
@@ -97,7 +133,7 @@ Alias de import: `@/*` aponta para a raiz do repositório.
 ## Modelo de dados
 
 - `users` — `id`, `username` (único), `name`, `password` (hash), `role`
-  (`master` | `user`), `created_at`.
+  (`master` | `user`), `must_change_password`, `created_at`.
 - `queues` — `id`, `title`, `item_name`, `image_url`, `created_by → users`.
 - `queue_items` — `id`, `queue_id → queues`, `name`, `position` (1 = próximo),
   `status` (`waiting` | `approved` | `completed`), `requested_by → users`.
@@ -105,100 +141,114 @@ Alias de import: `@/*` aponta para a raiz do repositório.
 - `drop_participants` — `drop_event_id`, `queue_item_id`, `name`,
   `action` (`accept` | `skip` | `decline`).
 
-Os tipos TS correspondentes estão em `lib/supabase.ts`; `auth-provider.tsx`
-converte `requested_by` → `requestedBy` para a UI. Se mudar o schema, atualize
-a migration **e** esses tipos.
+Tipos de API em `lib/types.ts` (`requested_by` vira `requestedBy` na API).
+Se mudar o schema, atualize a migration **e** o código em `lib/server`.
 
-O bucket de Storage `queue-images` precisa existir no Supabase (não é criado
-por migration).
+O bucket de Storage `queue-images` precisa existir no Supabase e ser público
+(não é criado por migration).
 
-## Como o app funciona hoje
+A branch `mult-guild` tem migrations antigas de multi-guild (tabela `guilds` e
+`guild_id` em tudo) que **não** fazem parte da `main`.
 
-- Tudo roda no **cliente** (`"use client"`): os componentes chamam
-  `useAuth()`, que fala direto com o Supabase usando a chave anon.
-- "Login" = buscar o usuário pelo `username`, comparar o hash da senha no
-  browser e salvar o objeto do usuário em `localStorage["currentUser"]`.
-  Não há Supabase Auth, cookie, JWT nem sessão no servidor.
-- As permissões de master são checadas só no cliente
-  (`if (user?.role !== "master") return`).
-- Reordenação de fila é feita com vários `update` sequenciais no cliente.
-- Os dados só atualizam após uma ação ou ao clicar em "refresh" (sem realtime).
-- A única rota de servidor é `/api/upload-image`, que usa a service role.
+## Como o app funciona
+
+- **O navegador nunca fala com o Supabase.** Os componentes usam `useAuth()`
+  (`components/auth-provider.tsx`), que chama as rotas em `app/api` via
+  `api()` de `lib/api-client.ts`.
+- **Sessão:** cookie `mu_session` (httpOnly, `SameSite=Lax`, 30 dias) com um
+  token assinado por HMAC (`SESSION_SECRET`). O token guarda só o id do
+  usuário e uma "versão" da senha; o usuário é relido do banco a cada request,
+  então mudança de role/exclusão vale na hora e trocar a senha derruba as
+  outras sessões.
+- **Permissões:** toda rota que altera dados chama `requireUser()` (e
+  `requireUser({ master: true })` para ações de master) no servidor.
+- **Senhas:** scrypt (`lib/server/password.ts`). Hashes do formato antigo são
+  aceitos e regravados com scrypt no primeiro login. Senhas novas têm no
+  mínimo 6 caracteres.
+- **Usuários criados pelo master** nascem com senha = username e
+  `must_change_password = true`; enquanto não trocarem a senha, a API devolve
+  `403 PASSWORD_CHANGE_REQUIRED` e a UI mostra um modal que não fecha.
+- **Banco:** RLS ligado em todas as tabelas, sem policies, e sem permissões
+  para `anon`/`authenticated` (migration `lock-public-tables`). Só a service
+  role (servidor) acessa.
+- **Aviso de nova versão:** `next.config.mjs` define `NEXT_PUBLIC_APP_VERSION`
+  (id do deploy na Vercel); `components/update-notice.tsx` compara com
+  `/api/version` a cada minuto e quando a aba volta ao foco.
+- Os dados só atualizam após uma ação ou ao clicar em "Atualizar" (sem realtime).
 
 ## Convenções
 
-- Idioma: comentários, mensagens de log e commits em **português**; a UI
+- Idioma: comentários, mensagens de erro/log e commits em **português**; a UI
   mistura PT e EN (prefira PT em textos novos para o usuário).
 - Commits no estilo Conventional Commits (`feat:`, `fix:`, `chore:`).
+- **Nova operação de dados:** crie/estenda uma rota em `app/api`, envolva com
+  `route(...)`, valide o corpo com `readJson(request, schemaZod)`, cheque
+  permissão com `requireUser(...)`, acesse o banco com `getSupabaseAdmin()` e
+  passe o resultado por `check(...)`. Coloque regras de negócio em
+  `lib/server/*`. No cliente, chame com `api()` dentro do `AuthProvider`.
+- Nunca importe `lib/supabase-admin.ts` ou `lib/server/*` em componentes
+  `"use client"`, e não use o cliente anon (`lib/supabase.ts`) em código novo.
+- Rotas que fazem `GET` de dados devem ter `export const dynamic = "force-dynamic"`.
 - Componentes de UI: reutilize `components/ui/*` (shadcn) e o tema MU definido
   em `app/globals.css` / `tailwind.config.ts` (`mu-gold`, `mu-electric`, etc.).
   Não edite `styles/globals.css` — ele não é usado.
 - Para adicionar um componente shadcn: `pnpm dlx shadcn@latest add <nome>`
   (config em `components.json`).
 - Use pnpm; ao adicionar dependência, fixe uma versão (evite `"latest"`).
-- Nunca importe `lib/supabase-admin.ts` em código cliente — ele usa a service
-  role key e lança erro se ela não existir.
 - Antes de terminar uma mudança, rode `npx tsc --noEmit` e `pnpm build`.
   Hoje existem 15 erros de tipo já conhecidos, todos em
   `components/ui/{calendar,chart,resizable}.tsx` (não usados); não introduza
   erros novos fora deles.
 
+## Deploy (ordem importa)
+
+1. Aplicar migrations aditivas (ex.: `must_change_password`) — seguras com a
+   versão antiga no ar.
+2. Configurar `SESSION_SECRET` na Vercel e publicar o código.
+3. Só depois aplicar a migration `lock-public-tables` (a versão antiga do app
+   acessava o Supabase direto pelo navegador e para de funcionar).
+
 ## Problemas conhecidos (backlog de correções)
 
-Levantados na análise inicial, em ordem aproximada de prioridade.
+Resolvidos na branch de segurança: autenticação no cliente, banco aberto para a
+anon key, hash de senha fraco, senha padrão sem troca obrigatória e upload que
+confiava no `userId` do cliente.
 
-### Segurança (crítico)
+### Segurança
 
-1. **Autenticação só no cliente.** O usuário logado é um JSON no
-   `localStorage`; basta editar `role` para `"master"` no DevTools para ganhar
-   acesso de master na UI.
-2. **Banco aberto para a chave anon.** As migrations não habilitam RLS. Como a
-   chave anon é pública (vai no bundle), qualquer pessoa pode ler a tabela
-   `users` inteira (incluindo hashes de senha — `login` faz `select("*")`),
-   promover-se a master, apagar filas e usuários direto pela API do Supabase.
-3. **Hash de senha fraco.** `lib/password-utils.ts` é um hash de 32 bits não
-   criptográfico (estilo Java `hashCode`), trivial de reverter/colidir.
-   Trocar por Supabase Auth ou bcrypt/argon2 no servidor.
-4. **Senha padrão = username** para usuários criados pelo master
-   (`createUser`).
-5. **`/api/upload-image` confia no `userId` enviado pelo cliente.** Qualquer um
-   que saiba o id de um master (os ids aparecem na lista de usuários) pode
-   enviar ou apagar imagens. Além disso, o arquivo sempre recebe extensão
-   `.jpg` independentemente do tipo.
-
-Direção sugerida: migrar para Supabase Auth (ou sessão própria com cookie
-httpOnly), mover as mutações para Route Handlers / Server Actions com checagem
-de role no servidor e habilitar RLS em todas as tabelas.
+1. Sem limite de tentativas de login (brute force). Considerar rate limit.
+2. Dependências desatualizadas, com CVEs (próximo passo).
 
 ### Lógica de filas
 
-6. Reordenações (`removePersonFromQueue`, `moveToEnd`, `changePosition`) não
-   são atômicas: vários `update` em loop no cliente. Ações simultâneas de dois
-   masters ou uma falha no meio deixam posições duplicadas/buracos. Não há
-   constraint `UNIQUE (queue_id, position)`. Ideal: função Postgres (RPC) em
-   transação.
-7. Itens `waiting` e `approved` compartilham a mesma sequência de `position`,
-   mas `changePosition` só reordena os `approved` e `approveRequest` não
-   renumera — as posições ficam inconsistentes.
-8. `moveToEnd` só funciona se o item estiver na posição 1.
-9. `addPersonToQueue` usa `.single()` para checar duplicidade, que retorna erro
-   (ignorado) quando não há linha — funciona por acaso.
-10. `refreshQueues` busca **todos** os `queue_items` de todas as filas e filtra
-    no cliente; não há realtime.
+3. Reordenações (`removePerson`, `moveToEnd`, `changePosition` em
+   `lib/server/queues.ts`) não são atômicas: vários `update` em sequência.
+   Ações simultâneas de dois masters ou uma falha no meio deixam posições
+   duplicadas/buracos. Não há constraint `UNIQUE (queue_id, position)`.
+   Ideal: função Postgres (RPC) em transação.
+4. Itens `waiting` e `approved` compartilham a mesma sequência de `position`,
+   mas `changePosition` só reordena os `approved` e `approve` não renumera —
+   as posições ficam inconsistentes.
+5. `moveToEnd` só funciona se o item estiver na posição 1.
+6. `listQueues` busca **todos** os `queue_items` de todas as filas; não há
+   realtime.
+7. Trocar o nome no perfil não atualiza o nome copiado em `queue_items.name`.
 
 ### Infra / qualidade
 
-11. `next.config.mjs` ignora erros de TypeScript e ESLint no build.
-12. ESLint não está instalado, então `pnpm lint` não funciona.
-13. Muitas dependências com versão `"latest"` → builds não reproduzíveis;
+8. `next.config.mjs` ignora erros de TypeScript e ESLint no build.
+9. ESLint não está instalado, então `pnpm lint` não funciona.
+10. Muitas dependências com versão `"latest"` → builds não reproduzíveis;
     já quebraram os tipos de `calendar`, `chart` e `resizable` (react-day-picker
     v9, recharts v3, react-resizable-panels v4).
-14. Script `migrate:reset` aponta para `database/migrationss` (erro de digitação).
-15. Todas as migrations têm `down` vazio (rollback não funciona).
-16. Código morto/duplicado: `styles/globals.css`, `hooks/*` duplicando
-    `components/ui/use-*`, UI de drops desativada mas `DropProvider` ainda
-    consultando `drop_events`/`drop_participants` no carregamento, dezenas de
-    componentes shadcn não usados.
-17. Sem testes automatizados.
-18. `package.json` ainda se chama `my-v0-project`; `<html lang="en">` com UI
+11. Script `migrate:reset` aponta para `database/migrationss` (erro de digitação).
+12. As 5 migrations originais têm `down` vazio (rollback não funciona).
+13. Código morto/duplicado: `styles/globals.css`, `hooks/*` duplicando
+    `components/ui/use-*`, sistema de drops desativado, dezenas de componentes
+    shadcn não usados.
+14. Sem testes automatizados.
+15. `package.json` ainda se chama `my-v0-project`; `<html lang="en">` com UI
     em português; logo carregado de um domínio externo (37games).
+16. Faltam índices nas FKs `queue_items.queue_id`, `queue_items.requested_by`
+    e `queues.created_by` (apontado pelo advisor do Supabase).
+17. Apagar um usuário que tenha `drop_events` falha (FK sem cascade).
