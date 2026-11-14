@@ -260,7 +260,7 @@ React 19.1.10, zod 4) e dependências com versão `"latest"`.
 10. Os tipos de `calendar`, `chart` e `resizable` estão quebrados (versões
     novas de react-day-picker, recharts e react-resizable-panels). Os
     componentes não são usados; dá para removê-los junto com as dependências.
-11. Script `migrate:reset` aponta para `database/migrationss` (erro de digitação).
+11. ~~`migrate:reset` apontava para `database/migrationss`~~ (corrigido).
 12. As 5 migrations originais têm `down` vazio (rollback não funciona).
 13. Código morto/duplicado: `styles/globals.css`, `hooks/*` duplicando
     `components/ui/use-*`, sistema de drops desativado, dezenas de componentes
