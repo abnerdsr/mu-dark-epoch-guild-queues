@@ -207,11 +207,21 @@ A branch `mult-guild` tem migrations antigas de multi-guild (tabela `guilds` e
 
 ## Deploy (ordem importa)
 
-1. Aplicar migrations aditivas (ex.: `must_change_password`) — seguras com a
-   versão antiga no ar.
-2. Configurar `SESSION_SECRET` na Vercel e publicar o código.
-3. Só depois aplicar a migration `lock-public-tables` (a versão antiga do app
-   acessava o Supabase direto pelo navegador e para de funcionar).
+- A Vercel publica **todo push** de qualquer branch (preview) e usa como
+  install command `pnpm install && pnpm run migrate:up`, com o `DATABASE_URL`
+  de **produção**.
+- `scripts/migrate-up.mjs` só roda as migrations quando `VERCEL_ENV` é
+  `production`; em preview elas são ignoradas. **Nunca** troque o
+  `migrate:up` de volta para chamar o `node-pg-migrate` direto.
+- Consequência: um preview de branch com migrations novas roda contra um banco
+  que ainda não as tem (pode dar erro no preview; a produção não é afetada).
+- Toda migration que vai para a `main` é aplicada no build de produção, antes
+  do código novo ficar no ar. Migrations que quebram a versão antiga (ex.:
+  `lock-public-tables`) precisam de um plano de publicação combinado com o
+  dono do projeto.
+- Ao aplicar uma migration à mão (SQL Editor), registre-a em `pgmigrations`;
+  se o `insert` der `duplicate key`, a sequência está atrasada:
+  `select setval('pgmigrations_id_seq', (select max(id) from pgmigrations));`.
 
 ## Problemas conhecidos (backlog de correções)
 

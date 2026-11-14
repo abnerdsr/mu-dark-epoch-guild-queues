@@ -9,9 +9,9 @@
     "lint": "next lint",
     "start": "next start",
     "migrate:new": "node-pg-migrate create -m database/migrations",
-    "migrate:up": "node-pg-migrate up -m database/migrations",
+    "migrate:up": "node scripts/migrate-up.mjs",
     "migrate:down": "node-pg-migrate down -m database/migrations",
-    "migrate:reset": "node-pg-migrate reset -m database/migrationss"
+    "migrate:reset": "node-pg-migrate reset -m database/migrations"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
