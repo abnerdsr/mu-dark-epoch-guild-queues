@@ -1,41 +1,24 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import { supabase } from "@/lib/supabase"
-import { hashPassword, verifyPassword } from "@/lib/password-utils"
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
+import { api, ApiRequestError } from "@/lib/api-client"
+import type { AuthUser, ListedUser, QueueWithItems } from "@/lib/types"
 
-interface AuthUser {
-  id: string
-  name: string
-  username: string
-  role: "master" | "user"
-}
-
-interface QueueWithItems {
-  id: string
-  title: string
-  item_name: string
-  image_url?: string
-  items: Array<{
-    id: string
-    name: string
-    position: number
-    status: "waiting" | "approved" | "completed"
-    requestedBy: string
-  }>
-}
+// Estado global do app. Todas as operações passam pelas rotas em app/api,
+// que validam a sessão (cookie httpOnly) e as permissões no servidor.
 
 interface AuthContextType {
   user: AuthUser | null
   queues: QueueWithItems[]
-  users: AuthUser[]
+  users: ListedUser[]
   isLoginOpen: boolean
   loading: boolean
   login: (username: string, password: string) => Promise<boolean>
-  signup: (name: string, username: string, password: string) => Promise<boolean>
-  logout: () => void
+  signup: (name: string, username: string, password: string) => Promise<string | null>
+  logout: () => Promise<void>
   openLogin: () => void
   closeLogin: () => void
+  changePassword: (newPassword: string) => Promise<void>
   addPersonToQueue: (queueId: string, userId: string) => Promise<void>
   removePersonFromQueue: (queueId: string, itemId: string) => Promise<void>
   moveToEnd: (queueId: string, itemId: string) => Promise<void>
@@ -45,7 +28,10 @@ interface AuthContextType {
   createQueue: (title: string) => Promise<void>
   deleteQueue: (queueId: string) => Promise<void>
   updateQueueTitle: (queueId: string, newTitle: string) => Promise<void>
-  updateQueueDetails: (queueId: string, details: { title?: string; item_name?: string; image_url?: string }) => Promise<void>
+  updateQueueDetails: (
+    queueId: string,
+    details: { title?: string; item_name?: string; image_url?: string | null }
+  ) => Promise<void>
   refreshQueues: () => Promise<void>
   refreshUsers: () => Promise<void>
   updateProfile: (name: string, password: string) => Promise<boolean>
@@ -61,118 +47,85 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [queues, setQueues] = useState<QueueWithItems[]>([])
-  const [users, setUsers] = useState<AuthUser[]>([])
+  const [users, setUsers] = useState<ListedUser[]>([])
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    initializeAuth()
-  }, [])
-
-  const initializeAuth = async () => {
+  const refreshQueues = useCallback(async () => {
     try {
-      const savedUser = localStorage.getItem("currentUser")
-      if (savedUser) {
-        const userData = JSON.parse(savedUser)
-        setUser(userData)
-      }
-      await refreshQueues()
-      await refreshUsers()
-    } catch (error) {
-      console.error("Erro ao inicializar:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const refreshQueues = async () => {
-    try {
-      // Buscar filas
-      const { data: queuesData, error: queuesError } = await supabase
-        .from("queues")
-        .select("*")
-        .order("created_at", { ascending: true })
-
-      if (queuesError) throw queuesError
-
-      // Buscar itens das filas
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("queue_items")
-        .select("*")
-        .order("position", { ascending: true })
-
-      if (itemsError) throw itemsError
-
-      // Combinar dados
-      const queuesWithItems: QueueWithItems[] = (queuesData || []).map((queue) => ({
-        id: queue.id,
-        title: queue.title,
-        item_name: queue.item_name || 'Queue Item',
-        image_url: queue.image_url,
-        items: (itemsData || [])
-          .filter((item) => item.queue_id === queue.id)
-          .map((item) => ({
-            id: item.id,
-            name: item.name,
-            position: item.position,
-            status: item.status,
-            requestedBy: item.requested_by,
-          })),
-      }))
-
-      setQueues(queuesWithItems)
+      const data = await api<{ queues: QueueWithItems[] }>("GET", "/api/queues")
+      setQueues(data.queues)
     } catch (error) {
       console.error("Erro ao carregar filas:", error)
     }
-  }
+  }, [])
 
-  const refreshUsers = async () => {
+  const refreshUsers = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, username, name, role, created_at")
-        .order("created_at", { ascending: true })
-
-      if (error) throw error
-
-      const usersData: AuthUser[] = (data || []).map((user) => ({
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        role: user.role,
-      }))
-
-      setUsers(usersData)
+      const data = await api<{ users: ListedUser[] }>("GET", "/api/users")
+      setUsers(data.users)
     } catch (error) {
       console.error("Erro ao carregar usuários:", error)
     }
+  }, [])
+
+  useEffect(() => {
+    const initialize = async () => {
+      // Sessão antiga (inseguro) ficava no localStorage; não é mais usada.
+      try {
+        localStorage.removeItem("currentUser")
+      } catch {}
+
+      try {
+        const [me] = await Promise.all([
+          api<{ user: AuthUser | null }>("GET", "/api/auth/me"),
+          refreshQueues(),
+          refreshUsers(),
+        ])
+        setUser(me.user)
+      } catch (error) {
+        console.error("Erro ao inicializar:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    initialize()
+  }, [refreshQueues, refreshUsers])
+
+  /** Trata erros comuns de sessão vindos da API. */
+  const handleApiError = (error: unknown, context: string) => {
+    if (error instanceof ApiRequestError) {
+      if (error.code === "UNAUTHORIZED") {
+        setUser(null)
+        setIsLoginOpen(true)
+      } else if (error.code === "PASSWORD_CHANGE_REQUIRED") {
+        setUser((current) => (current ? { ...current, mustChangePassword: true } : current))
+      }
+    }
+    console.error(`${context}:`, error)
+  }
+
+  /** Executa uma ação e recarrega as filas. Erros são registrados e (opcionalmente) repassados. */
+  const runQueueAction = async (context: string, action: () => Promise<unknown>, rethrow = false) => {
+    try {
+      await action()
+      await refreshQueues()
+    } catch (error) {
+      handleApiError(error, context)
+      if (rethrow) throw error
+    }
+  }
+
+  const afterLogin = async (authUser: AuthUser) => {
+    setUser(authUser)
+    setIsLoginOpen(false)
+    await Promise.all([refreshQueues(), refreshUsers()])
   }
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("username", username).single()
-
-      if (error || !data) {
-        return false
-      }
-
-      // Verificar senha com hash
-      if (!verifyPassword(password, data.password)) {
-        return false
-      }
-
-      const authUser: AuthUser = {
-        id: data.id,
-        name: data.name,
-        username: data.username,
-        role: data.role,
-      }
-
-      setUser(authUser)
-      localStorage.setItem("currentUser", JSON.stringify(authUser))
-      setIsLoginOpen(false)
-      await refreshQueues()
-      await refreshUsers()
+      const data = await api<{ user: AuthUser }>("POST", "/api/auth/login", { username, password })
+      await afterLogin(data.user)
       return true
     } catch (error) {
       console.error("Erro no login:", error)
@@ -180,460 +133,134 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signup = async (name: string, username: string, password: string): Promise<boolean> => {
+  /** Retorna null em caso de sucesso ou a mensagem de erro. */
+  const signup = async (name: string, username: string, password: string): Promise<string | null> => {
     try {
-      // Validar username (sem espaços)
-      if (username.includes(" ")) {
-        return false
-      }
-
-      const hashedPassword = hashPassword(password)
-
-      const { data, error } = await supabase
-        .from("users")
-        .insert([
-          {
-            name,
-            username,
-            password: hashedPassword,
-            role: "user",
-          },
-        ])
-        .select()
-        .single()
-
-      if (error) {
-        return false
-      }
-
-      const authUser: AuthUser = {
-        id: data.id,
-        name: data.name,
-        username: data.username,
-        role: data.role,
-      }
-
-      setUser(authUser)
-      localStorage.setItem("currentUser", JSON.stringify(authUser))
-      setIsLoginOpen(false)
-      await refreshQueues()
-      await refreshUsers()
-      return true
+      const data = await api<{ user: AuthUser }>("POST", "/api/auth/signup", { name, username, password })
+      await afterLogin(data.user)
+      return null
     } catch (error) {
       console.error("Erro no cadastro:", error)
-      return false
+      return error instanceof ApiRequestError ? error.message : "Erro ao criar conta"
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api("POST", "/api/auth/logout")
+    } catch (error) {
+      console.error("Erro ao sair:", error)
+    }
     setUser(null)
-    localStorage.removeItem("currentUser")
+    await refreshUsers()
+  }
+
+  const changePassword = async (newPassword: string) => {
+    const data = await api<{ user: AuthUser }>("POST", "/api/auth/password", { newPassword })
+    setUser(data.user)
+    await refreshUsers()
   }
 
   const openLogin = () => setIsLoginOpen(true)
   const closeLogin = () => setIsLoginOpen(false)
 
-  const addPersonToQueue = async (queueId: string, userId: string) => {
-    if (user?.role !== "master") return
+  const addPersonToQueue = (queueId: string, userId: string) =>
+    runQueueAction("Erro ao adicionar pessoa", () => api("POST", `/api/queues/${queueId}/items`, { userId }), true)
 
-    try {
-      // Verificar se a pessoa já está na fila
-      const { data: existingItem } = await supabase
-        .from("queue_items")
-        .select("id")
-        .eq("queue_id", queueId)
-        .eq("requested_by", userId)
-        .single()
+  const removePersonFromQueue = (queueId: string, itemId: string) =>
+    runQueueAction("Erro ao remover pessoa", () => api("DELETE", `/api/queues/${queueId}/items/${itemId}`))
 
-      if (existingItem) {
-        throw new Error("Pessoa já está nesta fila")
-      }
+  const moveToEnd = (queueId: string, itemId: string) =>
+    runQueueAction("Erro ao mover para o fim", () =>
+      api("PATCH", `/api/queues/${queueId}/items/${itemId}`, { action: "move-to-end" })
+    )
 
-      // Buscar dados do usuário
-      const { data: userData } = await supabase.from("users").select("name").eq("id", userId).single()
+  const changePosition = (queueId: string, itemId: string, newPosition: number) =>
+    runQueueAction("Erro ao alterar posição", () =>
+      api("PATCH", `/api/queues/${queueId}/items/${itemId}`, { action: "change-position", position: newPosition })
+    )
 
-      if (!userData) throw new Error("Usuário não encontrado")
-
-      // Buscar próxima posição
-      const { data: items } = await supabase
-        .from("queue_items")
-        .select("position")
-        .eq("queue_id", queueId)
-        .order("position", { ascending: false })
-        .limit(1)
-
-      const nextPosition = items && items.length > 0 ? items[0].position + 1 : 1
-
-      const { error } = await supabase.from("queue_items").insert([
-        {
-          queue_id: queueId,
-          name: userData.name,
-          position: nextPosition,
-          status: "approved",
-          requested_by: userId,
-        },
-      ])
-
-      if (error) throw error
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao adicionar pessoa:", error)
-      throw error
-    }
-  }
-
-  const removePersonFromQueue = async (queueId: string, itemId: string) => {
-    if (user?.role !== "master") return
-
-    try {
-      // Buscar item a ser removido
-      const { data: itemToRemove } = await supabase.from("queue_items").select("position").eq("id", itemId).single()
-
-      if (!itemToRemove) return
-
-      // Remover item
-      const { error: deleteError } = await supabase.from("queue_items").delete().eq("id", itemId)
-
-      if (deleteError) throw deleteError
-
-      // Buscar todos os itens posteriores para reordenar
-      const { data: itemsToUpdate } = await supabase
-        .from("queue_items")
-        .select("id, position")
-        .eq("queue_id", queueId)
-        .gt("position", itemToRemove.position)
-
-      if (itemsToUpdate) {
-        for (const item of itemsToUpdate) {
-          await supabase
-            .from("queue_items")
-            .update({ position: item.position - 1 })
-            .eq("id", item.id)
-        }
-      }
-
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao remover pessoa:", error)
-    }
-  }
-
-  const moveToEnd = async (queueId: string, itemId: string) => {
-    if (user?.role !== "master") return
-
-    try {
-      // Buscar item atual
-      const { data: currentItem } = await supabase.from("queue_items").select("*").eq("id", itemId).single()
-
-      if (!currentItem || currentItem.position !== 1) return
-
-      // Buscar maior posição na fila
-      const { data: maxPositionData } = await supabase
-        .from("queue_items")
-        .select("position")
-        .eq("queue_id", queueId)
-        .order("position", { ascending: false })
-        .limit(1)
-
-      const maxPosition = maxPositionData?.[0]?.position || 1
-
-      // Buscar todos os outros itens para reordenar
-      const { data: otherItems } = await supabase
-        .from("queue_items")
-        .select("id, position")
-        .eq("queue_id", queueId)
-        .gt("position", 1)
-
-      // Mover todos os outros itens uma posição para frente
-      if (otherItems) {
-        for (const item of otherItems) {
-          await supabase
-            .from("queue_items")
-            .update({ position: item.position - 1 })
-            .eq("id", item.id)
-        }
-      }
-
-      // Mover o item atual para o fim
-      const { error: moveError } = await supabase.from("queue_items").update({ position: maxPosition }).eq("id", itemId)
-
-      if (moveError) throw moveError
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao mover para o fim:", error)
-    }
-  }
-
-  const changePosition = async (queueId: string, itemId: string, newPosition: number) => {
-    if (user?.role !== "master") return
-
-    try {
-      // Buscar item atual
-      const { data: currentItem } = await supabase.from("queue_items").select("*").eq("id", itemId).single()
-
-      if (!currentItem) return
-
-      const oldPosition = currentItem.position
-
-      // Se a posição não mudou, não fazer nada
-      if (oldPosition === newPosition) return
-
-      // Buscar todos os itens da fila para reordenar
-      const { data: allItems } = await supabase
-        .from("queue_items")
-        .select("id, position")
-        .eq("queue_id", queueId)
-        .eq("status", "approved")
-        .order("position", { ascending: true })
-
-      if (!allItems) return
-
-      // Reordenar as posições
-      if (oldPosition < newPosition) {
-        // Movendo para baixo: itens entre oldPosition+1 e newPosition sobem uma posição
-        for (const item of allItems) {
-          if (item.position > oldPosition && item.position <= newPosition && item.id !== itemId) {
-            await supabase
-              .from("queue_items")
-              .update({ position: item.position - 1 })
-              .eq("id", item.id)
-          }
-        }
-      } else {
-        // Movendo para cima: itens entre newPosition e oldPosition-1 descem uma posição
-        for (const item of allItems) {
-          if (item.position >= newPosition && item.position < oldPosition && item.id !== itemId) {
-            await supabase
-              .from("queue_items")
-              .update({ position: item.position + 1 })
-              .eq("id", item.id)
-          }
-        }
-      }
-
-      // Atualizar a posição do item movido
-      const { error: updateError } = await supabase
-        .from("queue_items")
-        .update({ position: newPosition })
-        .eq("id", itemId)
-
-      if (updateError) throw updateError
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao alterar posição:", error)
-    }
-  }
-
-  const approveRequest = async (queueId: string, itemId: string) => {
-    if (user?.role !== "master") return
-
-    try {
-      const { error } = await supabase.from("queue_items").update({ status: "approved" }).eq("id", itemId)
-
-      if (error) throw error
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao aprovar solicitação:", error)
-    }
-  }
+  const approveRequest = (queueId: string, itemId: string) =>
+    runQueueAction("Erro ao aprovar solicitação", () =>
+      api("PATCH", `/api/queues/${queueId}/items/${itemId}`, { action: "approve" })
+    )
 
   const canJoinQueue = (queueId: string): boolean => {
     if (!user) return false
-
-    // Verificar se o usuário já está em alguma fila desta queue
     const queue = queues.find((q) => q.id === queueId)
     if (!queue) return false
-
     return !queue.items.some((item) => item.requestedBy === user.id)
   }
 
   const requestToJoinQueue = async (queueId: string): Promise<boolean> => {
-    if (!user) return false
-
+    if (!user || !canJoinQueue(queueId)) return false
     try {
-      // Verificar se já está na fila
-      if (!canJoinQueue(queueId)) {
-        return false
-      }
-
-      // Buscar próxima posição
-      const { data: items } = await supabase
-        .from("queue_items")
-        .select("position")
-        .eq("queue_id", queueId)
-        .order("position", { ascending: false })
-        .limit(1)
-
-      const nextPosition = items && items.length > 0 ? items[0].position + 1 : 1
-
-      const { error } = await supabase.from("queue_items").insert([
-        {
-          queue_id: queueId,
-          name: user.name,
-          position: nextPosition,
-          status: user.role === "master" ? "approved" : "waiting",
-          requested_by: user.id,
-        },
-      ])
-
-      if (error) throw error
+      await api("POST", `/api/queues/${queueId}/join`)
       await refreshQueues()
       return true
     } catch (error) {
-      console.error("Erro ao solicitar entrada:", error)
+      handleApiError(error, "Erro ao solicitar entrada")
       return false
     }
   }
 
-  const createQueue = async (title: string) => {
-    if (user?.role !== "master") return
+  const createQueue = (title: string) =>
+    runQueueAction("Erro ao criar fila", () => api("POST", "/api/queues", { title }))
 
-    try {
-      const { error } = await supabase.from("queues").insert([
-        {
-          title,
-          created_by: user.id,
-        },
-      ])
+  const deleteQueue = (queueId: string) =>
+    runQueueAction("Erro ao deletar fila", () => api("DELETE", `/api/queues/${queueId}`))
 
-      if (error) throw error
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao criar fila:", error)
-    }
-  }
+  const updateQueueTitle = (queueId: string, newTitle: string) =>
+    runQueueAction("Erro ao atualizar título da fila", () =>
+      api("PATCH", `/api/queues/${queueId}`, { title: newTitle })
+    )
 
-  const deleteQueue = async (queueId: string) => {
-    if (user?.role !== "master") return
-
-    try {
-      const { error } = await supabase.from("queues").delete().eq("id", queueId)
-
-      if (error) throw error
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao deletar fila:", error)
-    }
-  }
-
-  const updateQueueTitle = async (queueId: string, newTitle: string) => {
-    if (user?.role !== "master") return
-
-    try {
-      const { error } = await supabase.from("queues").update({ title: newTitle }).eq("id", queueId)
-
-      if (error) throw error
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao atualizar título da fila:", error)
-    }
-  }
-
-  const updateQueueDetails = async (queueId: string, details: { title?: string; item_name?: string; image_url?: string }) => {
-    if (user?.role !== "master") return
-
-    try {
-      const updateData: any = {}
-      if (details.title !== undefined) updateData.title = details.title
-      if (details.item_name !== undefined) updateData.item_name = details.item_name
-      if (details.image_url !== undefined) updateData.image_url = details.image_url
-
-      const { error } = await supabase.from("queues").update(updateData).eq("id", queueId)
-
-      if (error) throw error
-      await refreshQueues()
-    } catch (error) {
-      console.error("Erro ao atualizar detalhes da fila:", error)
-      throw error
-    }
-  }
+  const updateQueueDetails = (
+    queueId: string,
+    details: { title?: string; item_name?: string; image_url?: string | null }
+  ) =>
+    runQueueAction(
+      "Erro ao atualizar detalhes da fila",
+      () => api("PATCH", `/api/queues/${queueId}`, details),
+      true
+    )
 
   const updateProfile = async (name: string, password: string): Promise<boolean> => {
-    if (!user) return false
-
     try {
-      const hashedPassword = hashPassword(password)
-      const { error } = await supabase.from("users").update({ name, password: hashedPassword }).eq("id", user.id)
-
-      if (error) throw error
-
-      // Atualizar usuário local
-      const updatedUser = { ...user, name }
-      setUser(updatedUser)
-      localStorage.setItem("currentUser", JSON.stringify(updatedUser))
-
+      const data = await api<{ user: AuthUser }>("PATCH", "/api/profile", { name, password: password || undefined })
+      setUser(data.user)
       await refreshUsers()
       return true
     } catch (error) {
-      console.error("Erro ao atualizar perfil:", error)
+      handleApiError(error, "Erro ao atualizar perfil")
       return false
     }
   }
 
-  const createUser = async (name: string, username: string): Promise<boolean> => {
-    if (user?.role !== "master") return false
-
+  /** Executa uma ação de gerenciamento de usuários e recarrega a lista. */
+  const runUserAction = async (context: string, action: () => Promise<unknown>): Promise<boolean> => {
     try {
-      const hashedPassword = hashPassword(username) // Senha padrão é o username
-      const { error } = await supabase.from("users").insert([
-        {
-          name,
-          username,
-          password: hashedPassword,
-          role: "user",
-        },
-      ])
-
-      if (error) throw error
+      await action()
       await refreshUsers()
       return true
     } catch (error) {
-      console.error("Erro ao criar usuário:", error)
+      handleApiError(error, context)
       return false
     }
   }
 
-  const updateUser = async (userId: string, name: string, username: string): Promise<boolean> => {
-    if (user?.role !== "master") return false
+  const createUser = (name: string, username: string) =>
+    runUserAction("Erro ao criar usuário", () => api("POST", "/api/users", { name, username }))
 
-    try {
-      const { error } = await supabase.from("users").update({ name, username }).eq("id", userId)
+  const updateUser = (userId: string, name: string, username: string) =>
+    runUserAction("Erro ao atualizar usuário", () => api("PATCH", `/api/users/${userId}`, { name, username }))
 
-      if (error) throw error
-      await refreshUsers()
-      return true
-    } catch (error) {
-      console.error("Erro ao atualizar usuário:", error)
-      return false
-    }
-  }
-
-  const updateUserRole = async (userId: string, role: "master" | "user"): Promise<boolean> => {
-    if (user?.role !== "master") return false
-
-    try {
-      const { error } = await supabase.from("users").update({ role }).eq("id", userId)
-
-      if (error) throw error
-      await refreshUsers()
-      return true
-    } catch (error) {
-      console.error("Erro ao atualizar role do usuário:", error)
-      return false
-    }
-  }
+  const updateUserRole = (userId: string, role: "master" | "user") =>
+    runUserAction("Erro ao atualizar role do usuário", () => api("PATCH", `/api/users/${userId}`, { role }))
 
   const deleteUser = async (userId: string) => {
-    if (user?.role !== "master") return
-
-    try {
-      const { error } = await supabase.from("users").delete().eq("id", userId)
-
-      if (error) throw error
-      await refreshUsers()
-    } catch (error) {
-      console.error("Erro ao deletar usuário:", error)
-    }
+    await runUserAction("Erro ao deletar usuário", () => api("DELETE", `/api/users/${userId}`))
+    await refreshQueues()
   }
 
   return (
@@ -649,6 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         openLogin,
         closeLogin,
+        changePassword,
         addPersonToQueue,
         removePersonFromQueue,
         moveToEnd,
